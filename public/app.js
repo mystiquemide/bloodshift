@@ -270,7 +270,7 @@ function openDecline(t, btn) {
     } catch (err) {
       inboxStatus("error", `Couldn't decline: ${err.message}`);
     }
-    await loadInbox();
+    await Promise.all([loadInbox(), loadNotes()]);
   });
   card.append(form);
   input.focus();
@@ -317,6 +317,22 @@ async function loadInbox() {
   }
 }
 
+async function loadNotes() {
+  const list = $("#notes");
+  try {
+    const res = await fetch(`/api/declines?site=${encodeURIComponent(view)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { declines } = await res.json();
+    list.replaceChildren(...(declines.length
+      ? declines.map((n) => el("li", {},
+          el("p", {}, el("strong", {}, `${new Date(n.at).toISOString().replace("T", " ").slice(0, 16)} UTC`), ` · ${n.unitId} (${n.group}) · "${n.reason}"`),
+          el("p", { class: "source" }, `Memory ${n.memoryId}, from transfer ${n.transferId}, declined by ${n.by}.`)))
+      : [el("li", { class: "empty" }, "No declines yet. Reasons you give appear here and in later plans.")]));
+  } catch (err) {
+    list.replaceChildren(el("li", { class: "reason" }, `Couldn't load decline notes: ${err.message}`));
+  }
+}
+
 function applyView() {
   $("#view").value = view;
   const coordinator = view === "COORDINATOR";
@@ -326,6 +342,7 @@ function applyView() {
     $("#inbox-h").textContent = `${siteName(view)} inbox`;
     inboxStatus("", "");
     loadInbox();
+    loadNotes();
   } else {
     loadTransfers();
   }

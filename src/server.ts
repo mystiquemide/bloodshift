@@ -97,11 +97,20 @@ function json(res: ServerResponse, status: number, body: unknown) {
 async function serveStatic(path: string, res: ServerResponse) {
   const rel = normalize(path === "/" ? "/index.html" : path).replace(/^(\.\.[/\\])+/, "");
   const file = join(PUBLIC_DIR, rel);
-  if (!file.startsWith(PUBLIC_DIR)) return json(res, 404, { error: "not found" });
+  if (!file.startsWith(PUBLIC_DIR)) return notFound(res);
   try {
     const body = await readFile(file);
     res.writeHead(200, { "Content-Type": TYPES[extname(file)] ?? "application/octet-stream" });
     res.end(body);
+  } catch {
+    notFound(res);
+  }
+}
+
+async function notFound(res: ServerResponse) {
+  try {
+    res.writeHead(404, { "Content-Type": TYPES[".html"]! });
+    res.end(await readFile(join(PUBLIC_DIR, "404.html")));
   } catch {
     json(res, 404, { error: "not found" });
   }
@@ -155,11 +164,14 @@ const server = createServer(async (req, res) => {
       return json(res, 200, simulationSummary());
     }
     if (req.method === "GET" && url.pathname === "/api/declines") {
-      return json(res, 200, { declines: memory.all() });
+      const site = url.searchParams.get("site");
+      if (site && !SITES.some((s) => s.id === site)) return json(res, 400, { error: "Unknown site" });
+      return json(res, 200, { declines: site ? memory.forSite(site as SiteId, 50) : memory.all() });
     }
     if (req.method === "POST" && url.pathname === "/api/transfers/send") {
       return json(res, 200, { sent: await sendProposals(store, "coordinator") });
     }
+    if (req.method === "GET" && url.pathname.startsWith("/api/")) return json(res, 404, { error: "not found" });
     if (req.method === "GET") return serveStatic(url.pathname, res);
     json(res, 405, { error: "method not allowed" });
   } catch (err) {
