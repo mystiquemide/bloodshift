@@ -47,6 +47,11 @@ button.secondary { background: var(--panel); color: var(--accent); }
 .transfer .message { background: var(--bg); padding: 8px; border-radius: 4px; }
 .reason { color: var(--err); }
 .ok { color: var(--ok); font-weight: 600; }
+.replacement { color: #23439a; font-weight: 600; }
+.decline-form { margin-top: 8px; display: grid; gap: 6px; }
+textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; resize: vertical; width: 100%; }
+textarea:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }
+.badge.superseded { background: #f0f0f0; color: var(--muted); }
 .switcher { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 select { font: inherit; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
 select:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }

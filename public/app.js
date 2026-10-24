@@ -124,7 +124,9 @@ function transferCard(t, actions = []) {
       el("span", { class: `badge ${t.state}` }, stateText)),
     el("p", {}, `${siteName(t.from)} to ${siteName(t.to)}, courier slot ${t.slotId}, arrives ${time(t.arrivesAt)}`),
     t.state === "reserved" ? el("p", { class: "ok" }, `Reserved at ${siteName(t.from)}. Courier booking ${t.bookingId}.`) : "",
-    t.reason ? el("p", { class: "reason" }, t.state === "refused" ? `Refused: ${t.reason}` : t.reason) : "",
+    t.reason ? el("p", { class: "reason" }, t.state === "refused" ? `Refused: ${t.reason}` : t.state === "declined" ? `Declined: ${t.reason}` : t.reason) : "",
+    t.replacementNote ? el("p", { class: "replacement" }, t.replacementNote) : "",
+    t.replaces ? el("p", { class: "source" }, `Replaces ${t.replaces.split("-").slice(-3).join("-")}, which was declined or refused.`) : "",
     el("p", { class: "message" }, t.message),
     el("p", { class: "source" }, `Planned from: ${e.source}. Status ${e.status}, expires ${time(e.expiresAt)}, read ${time(e.queriedAt)}.`),
     t.state === "reserved" ? snapshotLine("Confirmed", t.confirmation) : snapshotLine("Checked", t.check),
@@ -200,12 +202,41 @@ async function act(t, kind, btn) {
   card.querySelector(".badge").className = "badge checking";
   card.querySelector(".badge").textContent = `checking ${siteName(t.from)}`;
   try {
-    await postJson(`/api/transfers/${encodeURIComponent(t.id)}/${kind}`, { site: view });
+    const out = await postJson(`/api/transfers/${encodeURIComponent(t.id)}/${kind}`, { site: view });
+    if (out.transfer.state === "refused") inboxStatus("partial", `Refused: ${out.transfer.reason}. ${out.replan?.note ?? ""}`);
+    else if (out.transfer.state === "reserved") inboxStatus("loaded", `Reserved at ${siteName(t.from)}. Courier booking ${out.transfer.bookingId}.`);
+    else if (out.transfer.state === "failed") inboxStatus("error", out.transfer.reason);
   } catch (err) {
     inboxStatus("error", err.message);
   }
   // Both panels re-read through Zetaris, so the stock table shows the reservation too
   await Promise.all([loadInbox(), load()]);
+}
+
+function openDecline(t, btn) {
+  const card = btn.closest(".transfer");
+  if (card.querySelector(".decline-form")) return;
+  const input = el("textarea", { maxlength: "500", rows: "2", "aria-label": `Reason for declining ${t.unitId}`, placeholder: "Why can't your site use this unit?" });
+  const send = el("button", { type: "submit" }, "Decline with reason");
+  const cancel = el("button", { type: "button", class: "secondary" }, "Cancel");
+  const form = el("form", { class: "decline-form" }, input, el("div", { class: "actions" }, send, cancel));
+  cancel.addEventListener("click", () => form.remove());
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const reason = input.value.trim();
+    if (!reason) { input.focus(); return; }
+    send.disabled = true;
+    send.textContent = "Declining and replanning";
+    try {
+      const out = await postJson(`/api/transfers/${encodeURIComponent(t.id)}/decline`, { site: view, reason });
+      inboxStatus(out.replacement ? "loaded" : "partial", `Declined. ${out.note}`);
+    } catch (err) {
+      inboxStatus("error", `Couldn't decline: ${err.message}`);
+    }
+    await loadInbox();
+  });
+  card.append(form);
+  input.focus();
 }
 
 async function postJson(path, body) {
@@ -232,7 +263,9 @@ async function loadInbox() {
       if (t.state === "requested") {
         const b = el("button", { type: "button" }, "Accept");
         b.addEventListener("click", () => act(t, "accept", b));
-        actions.push(b);
+        const d = el("button", { type: "button", class: "secondary" }, "Decline");
+        d.addEventListener("click", () => openDecline(t, d));
+        actions.push(b, d);
       }
       if (t.state === "failed") {
         const b = el("button", { type: "button" }, "Retry");

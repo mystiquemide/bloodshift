@@ -15,7 +15,8 @@
     "start": "tsx src/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "simulate": "tsx scripts/simulate.ts"
+    "simulate": "tsx scripts/simulate.ts",
+    "eval:declines": "tsx scripts/eval-declines.ts"
   },
   "dependencies": {
     "pg": "^8.23.1"

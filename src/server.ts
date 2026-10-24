@@ -5,7 +5,10 @@ import { loadEnv, optional, required } from "./config.js";
 import { ZetarisClient } from "./zetaris.js";
 import { readNetworkStock } from "./stock.js";
 import { TransferStore } from "./transfers.js";
-import { PlanAborted, runPlan, sendProposals, templateMessenger, type Messenger } from "./planner.js";
+import { PlanAborted, replan, runPlan, sendProposals, type PlannerDeps } from "./planner.js";
+import { NemotronDecider, templateDecider, type Decider } from "./nemotron.js";
+import { DeclineMemory } from "./declineMemory.js";
+import { declineTransfer } from "./decline.js";
 import { AcceptError, acceptTransfer } from "./accept.js";
 import { CourierClient } from "./courier.js";
 import { siteWritersFromEnv } from "./siteWriters.js";
@@ -23,7 +26,16 @@ const zetaris = new ZetarisClient({
 
 // Refuses to start if the World Model log can't be replayed
 const store = await TransferStore.open({ directory: optional("WORLD_DIR", "data") });
-const messenger: Messenger = templateMessenger;
+const memory = await DeclineMemory.open({ directory: optional("WORLD_DIR", "data") });
+const decider: Decider = process.env.NVIDIA_API_KEY
+  ? new NemotronDecider({
+      apiKey: process.env.NVIDIA_API_KEY,
+      model: optional("NEMOTRON_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b"),
+      thinking: optional("NEMOTRON_THINKING", "off") === "on",
+    })
+  : templateDecider;
+const planner: PlannerDeps = { zetaris, store, decider, memory };
+console.log(`Requests and replans by ${decider.name === "nemotron" ? `Nemotron (${optional("NEMOTRON_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")})` : "the standard template"}`);
 let planInFlight = false;
 const writers = siteWritersFromEnv();
 const courier = new CourierClient(`http://127.0.0.1:${optional("COURIER_PORT", "8090")}`);
@@ -96,7 +108,7 @@ const server = createServer(async (req, res) => {
       if (planInFlight) return json(res, 409, { error: "A plan is already running." });
       planInFlight = true;
       try {
-        return json(res, 200, await runPlan(zetaris, store, messenger));
+        return json(res, 200, await runPlan(planner));
       } catch (err) {
         if (err instanceof PlanAborted) return json(res, 503, { error: err.message });
         throw err;
@@ -107,7 +119,18 @@ const server = createServer(async (req, res) => {
     const accept = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/(accept|retry)$/);
     if (req.method === "POST" && accept) {
       const site = siteFrom(await readJson(req));
-      return json(res, 200, { transfer: await acceptTransfer({ zetaris, store, writers, courier }, accept[1]!, site) });
+      const transfer = await acceptTransfer({ zetaris, store, writers, courier }, accept[1]!, site);
+      // A refused unit is gone at its source. Offer the receiving site another one.
+      if (transfer.state === "refused") return json(res, 200, { transfer, replan: await replan(planner, transfer.id) });
+      return json(res, 200, { transfer });
+    }
+    const decline = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/decline$/);
+    if (req.method === "POST" && decline) {
+      const body = await readJson(req);
+      return json(res, 200, await declineTransfer(planner, decline[1]!, siteFrom(body), body.reason));
+    }
+    if (req.method === "GET" && url.pathname === "/api/declines") {
+      return json(res, 200, { declines: memory.all() });
     }
     if (req.method === "POST" && url.pathname === "/api/transfers/send") {
       return json(res, 200, { sent: await sendProposals(store, "coordinator") });

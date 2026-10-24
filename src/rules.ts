@@ -275,8 +275,15 @@ export interface Plan {
 
 // Picks at most one transfer per unit and one unit per courier slot, best candidate first,
 // then reprojects the network with the moves applied for the after count.
-export function buildPlan(input: PlanInput, choose: (options: Candidate[]) => Candidate | undefined = (o) => o[0]): Plan {
-  const { candidates, rejections, projectedOutdates } = buildCandidates(input);
+// `only` narrows the candidates, for a replan of one unit or one receiving site.
+export function buildPlan(
+  input: PlanInput,
+  choose: (options: Candidate[]) => Candidate | undefined = (o) => o[0],
+  only: (c: Candidate) => boolean = () => true,
+): Plan {
+  const built = buildCandidates(input);
+  const { rejections, projectedOutdates } = built;
+  const candidates = built.candidates.filter(only);
   const byUnit = new Map<string, Candidate[]>();
   for (const c of candidates) (byUnit.get(c.unitId) ?? byUnit.set(c.unitId, []).get(c.unitId)!).push(c);
 

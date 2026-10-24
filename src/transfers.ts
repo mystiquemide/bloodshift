@@ -56,6 +56,11 @@ export interface TransferRecord {
   // Live source read at accept time, the evidence for a refusal or a reservation
   check?: SourceSnapshot;
   bookingId?: string;
+  // Set on a refused or declined transfer: the replacement offered, or why there's none
+  replacementId?: string;
+  replacementNote?: string;
+  // Set on a replacement: the transfer it replaces
+  replaces?: string;
   // The Zetaris read after the writes, showing the reservation and the booking
   confirmation?: SourceSnapshot | null;
   updatedAt: string;
@@ -123,7 +128,7 @@ export class TransferStore {
     return new Date(t).toISOString();
   }
 
-  async create(t: Omit<TransferRecord, "state" | "updatedAt">, by: string): Promise<TransferRecord> {
+  async create(t: Omit<TransferRecord, "state" | "updatedAt" | "replacementId" | "replacementNote">, by: string): Promise<TransferRecord> {
     const at = this.now();
     const source = { kind: "pipeline", by, at, runId: t.planId };
     const { id, ...attrs } = t;
@@ -142,6 +147,16 @@ export class TransferStore {
     }
     await this.wm.assertFact({ about: this.entityId(id), predicate: "state", value: to, confidence: 1, source });
     await this.wm.assertFact({ about: this.entityId(id), predicate: "reason", value: reason ?? "", confidence: 1, source });
+    return this.get(id)!;
+  }
+
+  // Adds facts without a state change, such as the replacement offered after a refusal
+  async annotate(id: string, by: string, facts: Record<string, unknown>): Promise<TransferRecord> {
+    if (!this.get(id)) throw new Error(`No transfer ${id}`);
+    const source = { kind: "pipeline", by, at: this.now() };
+    for (const [predicate, value] of Object.entries(facts)) {
+      await this.wm.assertFact({ about: this.entityId(id), predicate, value, confidence: 1, source });
+    }
     return this.get(id)!;
   }
 
@@ -202,6 +217,9 @@ export class TransferStore {
       reason: typeof a.reason === "string" && a.reason ? a.reason : undefined,
       check: (a.check as SourceSnapshot | undefined) ?? undefined,
       bookingId: typeof a.bookingId === "string" ? a.bookingId : undefined,
+      replacementId: typeof a.replacementId === "string" ? a.replacementId : undefined,
+      replacementNote: typeof a.replacementNote === "string" ? a.replacementNote : undefined,
+      replaces: typeof a.replaces === "string" ? a.replaces : undefined,
       confirmation: (a.confirmation as SourceSnapshot | null | undefined) ?? undefined,
       updatedAt: states.at(-1)?.at ?? "",
     };
