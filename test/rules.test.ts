@@ -4,6 +4,7 @@ import {
   type Demand, type PlanInput, type SitePolicy,
 } from "../src/rules.js";
 import type { SiteId } from "../src/sites.js";
+import { acceptableFor } from "../src/compat.js";
 import type { CourierSlot, StockUnit } from "../src/stock.js";
 
 const NOW = new Date("2026-10-24T12:00:00Z");
@@ -38,17 +39,49 @@ function scenario(over: Partial<PlanInput> = {}): PlanInput {
 const rejected = (input: PlanInput, rule: string, unitId: string) =>
   buildCandidates(input).rejections.some((r) => r.rule === rule && r.unitId === unitId);
 
+const rates = (entries: [string, number][]) => new Map(entries);
+
 describe("expiry projection", () => {
   it("uses units oldest first at the site's daily rate", () => {
-    // 1 a day: first unit used at 24h, second at 48h
-    const p = projectSite([unit("x", "SITE_A", 30), unit("y", "SITE_A", 40)], 1, NOW);
-    expect(p.map((x) => [x.unitId, x.hoursToUse, x.outdate])).toEqual([["x", 24, false], ["y", 48, true]]);
+    // 1 a day: first unit used at 24h, second at 48h, after its 40h expiry
+    const p = projectSite([unit("x", "SITE_A", 30), unit("y", "SITE_A", 40)], rates([["O+", 1]]), NOW);
+    expect(p.map((x) => [x.unitId, x.hoursToUse, x.outdate])).toEqual([["x", 24, false], ["y", Infinity, true]]);
   });
   it("projects every unit as an outdate at a site with no demand", () => {
-    expect(projectSite([unit("x", "SITE_A", 100)], 0, NOW)[0]!.outdate).toBe(true);
+    expect(projectSite([unit("x", "SITE_A", 100)], rates([]), NOW)[0]!.outdate).toBe(true);
   });
   it("ignores units that aren't available", () => {
-    expect(projectSite([unit("x", "SITE_A", 30, { status: "used" })], 1, NOW)).toEqual([]);
+    expect(projectSite([unit("x", "SITE_A", 30, { status: "used" })], rates([["O+", 1]]), NOW)).toEqual([]);
+  });
+  it("lets a compatible patient group use a unit no identical patient needs", () => {
+    // An A+ unit at a site with only O+ patients is second choice for them, and gets used
+    const p = projectSite([unit("x", "SITE_A", 30, { abo: "A" })], rates([["O+", 1]]), NOW);
+    expect(p[0]!.outdate).toBe(false);
+  });
+  it("issues the identical group before a compatible one", () => {
+    const p = projectSite([unit("a", "SITE_A", 30, { abo: "A" }), unit("o", "SITE_A", 40)], rates([["O+", 1]]), NOW);
+    expect(p.find((x) => x.unitId === "o")!.hoursToUse).toBe(24);
+    expect(p.find((x) => x.unitId === "a")!.outdate).toBe(true);
+  });
+  it("never issues a unit before it arrives", () => {
+    const p = projectSite([unit("x", "SITE_A", 60)], rates([["O+", 10]]), NOW, new Map([["x", 8]]));
+    expect(p[0]!.hoursToUse).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("platelet ABO and RhD selection (SNBTS Table 1)", () => {
+  it("prefers identical, then the listed second and third choices", () => {
+    expect(acceptableFor("O+")).toEqual(["O+", "O-", "A+", "A-", "B+", "B-"]);
+    expect(acceptableFor("AB+")).toEqual(["AB+", "AB-", "A+", "A-", "B+", "B-"]);
+  });
+  it("never offers group O platelets to A, B or AB patients", () => {
+    for (const p of ["A+", "A-", "B+", "B-", "AB+", "AB-"]) expect(acceptableFor(p).some((g) => g.startsWith("O"))).toBe(false);
+  });
+  it("never offers RhD-positive platelets to RhD-negative patients", () => {
+    for (const p of ["O-", "A-", "B-", "AB-"]) expect(acceptableFor(p).every((g) => g.endsWith("-"))).toBe(true);
+  });
+  it("rejects an unknown group", () => {
+    expect(() => acceptableFor("C+")).toThrow();
   });
 });
 

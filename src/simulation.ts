@@ -2,6 +2,7 @@
 // A labeled supporting check for the M2 gate. It never reads or writes live data.
 import { buildPlan, type Demand } from "./rules.js";
 import { poisson, rng } from "./random.js";
+import { acceptableFor } from "./compat.js";
 import { BLOOD_GROUPS, SITE_POLICIES, type SiteId } from "./sites.js";
 import type { CourierSlot, StockUnit } from "./stock.js";
 
@@ -29,6 +30,7 @@ export interface SimResult {
   outdates: number;
   shortages: number;
   transfers: number;
+  outdatesByGroup: Record<string, number>;
 }
 
 // Deterministic sub-stream per purpose, so both policies see identical demand and supply draws
@@ -50,7 +52,7 @@ export function simulate(opts: { seed: number; policy: "no-sharing" | "rule"; da
 
   let stock: StockUnit[] = [];
   const transferred = new Set<string>();
-  const result: SimResult = { policy, supplied: 0, issued: 0, outdates: 0, shortages: 0, transfers: 0 };
+  const result: SimResult = { policy, supplied: 0, issued: 0, outdates: 0, shortages: 0, transfers: 0, outdatesByGroup: {} };
   let serial = 0;
 
   for (let day = 0; day < warmup + days; day++) {
@@ -97,29 +99,43 @@ export function simulate(opts: { seed: number; policy: "no-sharing" | "rule"; da
       if (counting) result.transfers += moves.size;
     }
 
-    // 3. The day's demand, met oldest unit first with units still in date at midday
+    // 3. The day's demand, met with units still in date at midday. Every patient group takes
+    // its identical group first, and only then do groups fall back to compatible choices
+    // (src/compat.ts), oldest unit first. Both policies issue this way.
     const midday = morning + 6 * HOUR;
     sites.forEach((site, si) => {
-      groups.forEach(([abo, rh, share], gi) => {
-        const wanted = poisson(stream(seed, 2, day, si, gi), site.dailyUse * share);
-        const shelf = stock
-          .filter((u) => u.siteId === site.id && u.abo === abo && u.rh === rh && Date.parse(u.expiresAt) > midday)
-          .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt));
-        const used = shelf.slice(0, wanted);
-        const usedIds = new Set(used.map((u) => u.unitId));
-        stock = stock.filter((u) => !usedIds.has(u.unitId));
-        if (counting) {
-          result.issued += used.length;
-          result.shortages += wanted - used.length;
+      const need = groups.map(([abo, rh, share], gi) => ({
+        patient: `${abo}${rh}`,
+        left: poisson(stream(seed, 2, day, si, gi), site.dailyUse * share),
+      }));
+      const wanted = need.reduce((n, x) => n + x.left, 0);
+      const usedIds = new Set<string>();
+      for (let rank = 0; rank < 6; rank++) {
+        for (const n of need) {
+          const g = acceptableFor(n.patient)[rank];
+          if (!g || n.left === 0) continue;
+          const shelf = stock
+            .filter((u) => u.siteId === site.id && `${u.abo}${u.rh}` === g && !usedIds.has(u.unitId) && Date.parse(u.expiresAt) > midday)
+            .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt));
+          for (const u of shelf.slice(0, n.left)) usedIds.add(u.unitId);
+          n.left -= Math.min(n.left, shelf.length);
         }
-      });
+      }
+      stock = stock.filter((u) => !usedIds.has(u.unitId));
+      if (counting) {
+        result.issued += usedIds.size;
+        result.shortages += wanted - usedIds.size;
+      }
     });
 
     // 4. Overnight, anything that expires before tomorrow morning is thrown out
     const tomorrow = morning + 24 * HOUR;
     const expired = stock.filter((u) => Date.parse(u.expiresAt) <= tomorrow);
     stock = stock.filter((u) => Date.parse(u.expiresAt) > tomorrow);
-    if (counting) result.outdates += expired.length;
+    if (counting) {
+      result.outdates += expired.length;
+      for (const u of expired) result.outdatesByGroup[`${u.abo}${u.rh}`] = (result.outdatesByGroup[`${u.abo}${u.rh}`] ?? 0) + 1;
+    }
   }
   return result;
 }

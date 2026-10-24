@@ -1,6 +1,7 @@
 // Deterministic transfer rule. Everything the plan proposes comes from here.
 // The model may later choose among these candidates and write messages. It can't add to them.
 import type { SiteId } from "./sites.js";
+import { acceptableFor } from "./compat.js";
 import type { CourierSlot, StockUnit } from "./stock.js";
 
 const HOUR = 3_600_000;
@@ -56,10 +57,10 @@ function hoursUntil(iso: string, now: Date): number {
   return (Date.parse(iso) - now.getTime()) / HOUR;
 }
 
-// Expiry projection. Each site issues its oldest unit first (FIFO) at its average daily rate,
-// matched on ABO and Rh. The k-th unit in line (0-based) is used after (k+1)/rate days.
-// A unit is a projected outdate if that's later than its expiry.
-// Matching on exact group is conservative. Platelet ABO rules are looser in practice.
+// Expiry projection. Hour by hour, each patient group at a site draws on stock at its
+// average daily rate. Each draw takes the oldest unit of the best acceptable group on the
+// shelf (src/compat.ts), never an expired unit or one still in transit. A unit nobody
+// draws before it expires is a projected outdate.
 export interface Projection {
   unitId: string;
   siteId: SiteId;
@@ -68,36 +69,58 @@ export interface Projection {
   outdate: boolean;
 }
 
-export function projectSite(units: StockUnit[], rate: number, now: Date, arrivals: Map<string, number> = new Map()): Projection[] {
-  // arrivals: unitId -> hours from now when the unit becomes usable here
-  const queue = units
-    .filter((u) => u.status === "available")
-    .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt));
-  const perHour = rate / 24;
-  const out: Projection[] = [];
-  let clock = 0;
-  for (const u of queue) {
-    const ready = arrivals.get(u.unitId) ?? 0;
-    // Issue times advance one unit per 1/rate days, never before the unit is on the shelf
-    clock = Math.max(clock + (perHour > 0 ? 1 / perHour : Infinity), ready);
-    const hoursToExpiry = hoursUntil(u.expiresAt, now);
-    out.push({ unitId: u.unitId, siteId: u.siteId, hoursToUse: clock, hoursToExpiry, outdate: clock > hoursToExpiry });
+const HORIZON_HOURS = 168;
+
+export function siteRates(demand: Demand, site: SiteId): Map<string, number> {
+  const rates = new Map<string, number>();
+  for (const [k, v] of demand) {
+    const [s, group] = k.split("|") as [string, string];
+    if (s === site && v > 0) rates.set(group, v);
   }
-  return out;
+  return rates;
+}
+
+export function projectSite(units: StockUnit[], rates: Map<string, number>, now: Date, arrivals: Map<string, number> = new Map()): Projection[] {
+  // arrivals: unitId -> hours from now when the unit becomes usable here
+  const shelf = units
+    .filter((u) => u.status === "available")
+    .map((u) => ({ u, group: groupOf(u), expiry: hoursUntil(u.expiresAt, now), ready: arrivals.get(u.unitId) ?? 0, usedAt: Infinity }))
+    .sort((a, b) => a.expiry - b.expiry || a.u.unitId.localeCompare(b.u.unitId));
+  // Highest-demand groups draw first within an hour, so ordering is deterministic
+  const patients = [...rates.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const choices = new Map(patients.map(([p]) => [p, acceptableFor(p)]));
+  // Accumulated demand in unit-hours per day: one unit is due each time it reaches 24
+  const due = new Map(patients.map(([p]) => [p, 0]));
+  const horizon = Math.min(HORIZON_HOURS, Math.ceil(Math.max(0, ...shelf.map((x) => x.expiry))));
+  for (let t = 1; t <= horizon; t++) {
+    for (const [p, rate] of patients) {
+      let owed = due.get(p)! + rate;
+      while (owed >= 24 - 1e-9) {
+        owed -= 24;
+        for (const g of choices.get(p)!) {
+          const pick = shelf.find((x) => x.group === g && x.usedAt === Infinity && x.ready <= t && x.expiry >= t);
+          if (pick) {
+            pick.usedAt = t;
+            break;
+          }
+        }
+      }
+      due.set(p, owed);
+    }
+  }
+  return shelf.map((x) => ({ unitId: x.u.unitId, siteId: x.u.siteId, hoursToUse: x.usedAt, hoursToExpiry: x.expiry, outdate: x.usedAt === Infinity }));
 }
 
 export function projectNetwork(units: StockUnit[], demand: Demand, now: Date, arrivals?: Map<string, number>): Projection[] {
-  const groups = new Map<string, StockUnit[]>();
-  for (const u of units) {
-    const k = key(u.siteId, groupOf(u));
-    (groups.get(k) ?? groups.set(k, []).get(k)!).push(u);
-  }
-  const out: Projection[] = [];
-  for (const [k, list] of groups) {
-    const [site, group] = k.split("|") as [SiteId, string];
-    out.push(...projectSite(list, dailyDemand(demand, site, group), now, arrivals));
-  }
-  return out;
+  const sites = [...new Set(units.map((u) => u.siteId))];
+  return sites.flatMap((site) => projectSite(units.filter((u) => u.siteId === site), siteRates(demand, site), now, arrivals));
+}
+
+// Daily demand at a site from every patient group that can receive this unit group
+export function compatibleDemand(demand: Demand, site: SiteId, unitGroup: string): number {
+  let total = 0;
+  for (const [p, rate] of siteRates(demand, site)) if (acceptableFor(p).includes(unitGroup)) total += rate;
+  return total;
 }
 
 export type RuleId = "BR-001" | "BR-002" | "BR-004" | "BR-005" | "BR-006" | "BR-007" | "BR-008" | "BR-010" | "SLOT" | "NO-USE";
@@ -161,16 +184,16 @@ export function buildCandidates(input: PlanInput): CandidateResult {
       continue;
     }
 
-    const senderRate = dailyDemand(demand, unit.siteId, group);
+    const senderRate = compatibleDemand(demand, unit.siteId, group);
     for (const to of sites) {
       if (to === unit.siteId) continue;
       if (input.declined.get(unit.unitId)?.has(to)) {
         rejections.push({ unitId: unit.unitId, to, rule: "BR-008", reason: `${to} declined this unit` });
         continue;
       }
-      const receiverRate = dailyDemand(demand, to, group);
+      const receiverRate = compatibleDemand(demand, to, group);
       if (receiverRate <= senderRate) {
-        rejections.push({ unitId: unit.unitId, to, rule: "BR-005", reason: `${to} uses ${group} no faster than ${unit.siteId}` });
+        rejections.push({ unitId: unit.unitId, to, rule: "BR-005", reason: `${to} has no more demand that ${group} can serve than ${unit.siteId}` });
         continue;
       }
       const routeSlots = slots
@@ -192,9 +215,10 @@ export function buildCandidates(input: PlanInput): CandidateResult {
         }
         // Would the receiver actually use it in time, behind its own stock?
         const arrival = (Date.parse(slot.arrivesAt) - now.getTime()) / HOUR;
-        const receiverUnits = units.filter((u) => u.siteId === to && groupOf(u) === group);
+        // The whole receiving shelf competes, since compatible groups serve the same patients
+        const receiverUnits = units.filter((u) => u.siteId === to);
         const moved = { ...unit, siteId: to };
-        const proj = projectSite([...receiverUnits, moved], receiverRate, now, new Map([[unit.unitId, arrival]]));
+        const proj = projectSite([...receiverUnits, moved], siteRates(demand, to), now, new Map([[unit.unitId, arrival]]));
         const mine = proj.find((x) => x.unitId === unit.unitId)!;
         if (mine.outdate) {
           firstFailure ??= { unitId: unit.unitId, to, rule: "NO-USE", reason: `${to} wouldn't use it before expiry either` };
