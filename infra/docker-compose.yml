@@ -1,0 +1,50 @@
+# Synthetic hospital sources and the mock courier service.
+# They join the Zetaris network so Zetaris can read them by container name.
+name: bloodshift-sources
+
+services:
+  site_a:
+    image: postgres:16-alpine
+    container_name: bs_site_a
+    environment:
+      POSTGRES_DB: site_a
+      POSTGRES_USER: ${SITE_A_USER:-site_a}
+      POSTGRES_PASSWORD: ${SITE_A_PASSWORD:?set SITE_A_PASSWORD}
+    ports: ["127.0.0.1:${SITE_A_PORT:-5433}:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d site_a"]
+      interval: 2s
+      retries: 30
+
+  site_b:
+    image: postgres:16-alpine
+    container_name: bs_site_b
+    environment:
+      POSTGRES_DB: site_b
+      POSTGRES_USER: ${SITE_B_USER:-site_b}
+      POSTGRES_PASSWORD: ${SITE_B_PASSWORD:?set SITE_B_PASSWORD}
+    ports: ["127.0.0.1:${SITE_B_PORT:-5434}:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d site_b"]
+      interval: 2s
+      retries: 30
+
+  courier:
+    image: node:22-alpine
+    container_name: bs_courier
+    working_dir: /app
+    command: ["node", "server.mjs"]
+    environment:
+      COURIER_DATA: /data/slots.json
+    volumes:
+      - ./courier:/app:ro
+      - courier-data:/data
+    ports: ["127.0.0.1:${COURIER_PORT:-8090}:8080"]
+
+volumes:
+  courier-data:
+
+networks:
+  default:
+    name: zetaris_default
+    external: true

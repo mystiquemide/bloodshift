@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bloodshift</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="banner" role="note">Synthetic data. No real patients, hospitals or units.</div>
+  <header class="top">
+    <div>
+      <h1>Bloodshift</h1>
+      <p class="sub">Network platelet stock, read live from each hospital's own system through Zetaris</p>
+    </div>
+    <button id="refresh" type="button">Refresh</button>
+  </header>
+  <main>
+    <p id="status" class="status" role="status" aria-live="polite">Loading live stock</p>
+    <section id="sites" class="sites" aria-label="Sites"></section>
+    <section class="courier" aria-labelledby="courier-h">
+      <h2 id="courier-h">Courier slots <span class="tag mock">Mock courier</span></h2>
+      <p id="courier-status" class="source"></p>
+      <div class="table-wrap"><table id="slots"><thead><tr><th>Slot</th><th>Route</th><th>Departs</th><th>Status</th><th>Booking</th></tr></thead><tbody></tbody></table></div>
+    </section>
+  </main>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
