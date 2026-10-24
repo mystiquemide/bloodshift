@@ -16,3 +16,11 @@ export const SITES: Site[] = [
 ];
 
 export const COURIER_SOURCE = "bs_courier";
+
+// Per-site rule settings. Both values are Assumed until checked against a transfusion guideline.
+export const SITE_POLICIES: Record<SiteId, { safetyStock: number; needsIrradiated: boolean }> = {
+  SITE_A: { safetyStock: 1, needsIrradiated: false },
+  // Riverside runs the oncology unit, so it's the site flagged for irradiated platelets
+  SITE_B: { safetyStock: 1, needsIrradiated: true },
+  SITE_C: { safetyStock: 1, needsIrradiated: false },
+};

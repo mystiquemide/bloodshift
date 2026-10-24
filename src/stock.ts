@@ -148,3 +148,25 @@ export async function readNetworkStock(zetaris: Querier): Promise<NetworkStock> 
   const state = okCount === sites.length + 1 ? "loaded" : okCount === 0 ? "error" : "partial";
   return { state, sites, courier };
 }
+
+export interface UsageRow {
+  site_id: string;
+  abo: string;
+  rh: string;
+  days: number;
+  used: number;
+}
+
+// Usage history per group, aggregated at each source. Feeds the expiry projection.
+export async function readUsage(zetaris: Querier): Promise<UsageRow[]> {
+  const results = await Promise.all(
+    SITES.map((site) =>
+      zetaris.query(
+        `SELECT site_id, abo, rh, COUNT(DISTINCT day) AS days, SUM(units_used) AS used FROM ${site.zetarisSource}.usage_history GROUP BY site_id, abo, rh`,
+      ),
+    ),
+  );
+  return results.flatMap((r) =>
+    r.rows.map((row) => ({ site_id: str(row.site_id), abo: str(row.abo), rh: str(row.rh), days: Number(row.days), used: Number(row.used) })),
+  );
+}
