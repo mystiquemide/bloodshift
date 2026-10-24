@@ -1,35 +1,60 @@
 # Bloodshift
 
-Platelets expire about five days after collection. One hospital throws them out while a hospital nearby runs short. Bloodshift reads every hospital's live platelet stock in place through Zetaris, so a network coordinator sees the whole picture on one screen without anyone posting stock by hand.
+Platelets expire about five days after collection. One hospital throws them out while a hospital nearby runs short. Bloodshift reads every hospital's live platelet stock in place through Zetaris, proposes transfers that would prevent waste, and moves a unit only after re-checking the sending hospital's own record.
 
-All hospital data here is synthetic.
+All hospital data here is synthetic, and the courier is a mock service.
 
 ## How it works
 
-Each hospital keeps its own system. Site A and Site B run Postgres, and Site C exports a CSV. A mock courier service publishes transport slots over REST. Zetaris federates all four, and the app reads them with one query per source. Nothing is copied or synced, so an edit at a source shows up on the next refresh. If one source is offline, the view names it and keeps showing the rest.
+1. **Live stock.** Site A and Site B run Postgres, Site C exports a CSV, and a courier service publishes transport slots over REST. Zetaris federates all four. Nothing is copied or synced.
+2. **Morning plan.** A deterministic rule projects which units will expire unused and finds transfers that pass every business rule, including a published platelet ABO and RhD selection policy. NVIDIA Nemotron chooses among those options and writes the requests. It can't add a unit, site or slot, and its output is validated.
+3. **Accept.** The receiving lab accepts from its inbox. Bloodshift re-reads the unit and the slot through Zetaris. If either changed, the transfer is refused and a replacement is offered. Otherwise the unit is reserved in the sending hospital's own system and the courier is booked.
+4. **Decline.** A lab can decline with a reason. The reason is kept in Meterless H-MEM, and the unit is replanned to another site.
+
+Transfer history is an event log in the Meterless World Model, so it survives refreshes and restarts.
 
 ## Run it
 
-You need Node 22+, Docker, and a running Zetaris instance. To run Zetaris yourself, use the Docker Compose bundle from Zetaris Cloud ("Run locally").
+You need Node 22+, Docker, and a running Zetaris instance. To run Zetaris yourself, use the Docker Compose bundle from Zetaris Cloud ("Run locally"). An NVIDIA API key from build.nvidia.com is optional. Without it, requests use a standard template.
 
 ```bash
 npm install
-cp .env.example .env        # fill in the Zetaris login and two site database passwords
+cp .env.example .env        # Zetaris login, two site database passwords, optional NVIDIA_API_KEY
 npm run sources:up          # Site A, Site B and the courier, on the Zetaris Docker network
 npm run seed                # synthetic stock and 30 days of usage, from a fixed seed
 npm run register            # registers all four sources in Zetaris
 npm start                   # http://localhost:4000
 ```
 
-`npm test` runs the unit tests. `npm run typecheck` runs the TypeScript checks.
+Use "View as" to switch between the network coordinator and each hospital's lab.
 
-## Try the live read
+## Try it
 
-Change a unit at a source, then click Refresh:
+- **Live read.** Change a unit at its source, then click Refresh:
+  ```bash
+  docker exec bs_site_a psql -U site_a -d site_a \
+    -c "UPDATE platelet_units SET status='used' WHERE unit_id='U-A-0112'"
+  ```
+- **Plan and accept.** As the coordinator, run the morning plan and send the requests. Switch to Riverside Medical and accept one. Site A's table and the courier's slot both change.
+- **Refusal.** Mark a requested unit `used` with the command above, then accept it. It's refused with Site A's reason, nothing is written, and another unit is offered.
+- **Partial view.** `docker stop bs_site_b` shows the other sites with Riverside marked unavailable. `docker start bs_site_b` brings it back.
 
-```bash
-docker exec bs_site_a psql -U site_a -d site_a \
-  -c "UPDATE platelet_units SET status='used' WHERE unit_id='U-A-0112'"
-```
+## Checks
 
-Stop a site with `docker stop bs_site_b` to see the partial view, and `docker start bs_site_b` to bring it back.
+| Command | What it does |
+|---|---|
+| `npm test` | Unit tests, including one passing and one failing case per business rule |
+| `npm run typecheck` | TypeScript checks |
+| `npm run simulate` | 30-day simulation of the rule against no sharing, over 20 seeds |
+| `npm run eval:declines` | 10 decline scenarios against the live Nemotron model |
+
+## Results so far
+
+- In simulation, the rule cuts outdated platelets by about 12% against no sharing, and by about a third for the most common groups, with slightly fewer shortages. The simulation uses synthetic demand and isn't a measured result.
+- The decline evaluation gave valid replans in 8 to 10 of 10 scenarios per run, including a reason that tries to inject instructions.
+
+## Limits
+
+- Writes go to each hospital's system through small adapters, not through Zetaris. Hospitals keep write control, and Zetaris only reads.
+- The lab switcher has no sign-in. It's a demo of the workflow, not an access-controlled product.
+- Platelet selection follows the SNBTS Policy for Platelet Selection (2014). Check current national guidance before any clinical use.
