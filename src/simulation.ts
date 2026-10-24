@@ -60,10 +60,14 @@ export function simulate(opts: { seed: number; policy: "no-sharing" | "rule"; da
     const counting = day >= warmup;
 
     // 1. Supplier delivery up to each site's par level. Units arrive with 3 to 4 days of life.
+    // Sites don't stock AB platelets: SNBTS Table 1 notes group AB platelets are unlikely to be
+    // available, and AB patients take A or B. AB demand is added to the A and B par, split evenly.
     sites.forEach((site, si) => {
       groups.forEach(([abo, rh, share], gi) => {
+        if (abo === "AB") return;
         const r = stream(seed, 1, day, si, gi);
-        const par = Math.ceil(site.parDays * site.dailyUse * share);
+        const abShare = abo === "A" || abo === "B" ? (groups.find(([a, h]) => a === "AB" && h === rh)?.[2] ?? 0) / 2 : 0;
+        const par = Math.ceil(site.parDays * site.dailyUse * (share + abShare));
         const onHand = stock.filter((u) => u.siteId === site.id && u.abo === abo && u.rh === rh).length;
         for (let i = 0; i < Math.max(0, par - onHand); i++) {
           stock.push({
