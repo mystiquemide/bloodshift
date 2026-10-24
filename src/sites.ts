@@ -24,3 +24,10 @@ export const SITE_POLICIES: Record<SiteId, { safetyStock: number; needsIrradiate
   SITE_B: { safetyStock: 1, needsIrradiated: true },
   SITE_C: { safetyStock: 1, needsIrradiated: false },
 };
+
+// ABO and Rh mix of platelet supply, used by the seed and the simulation
+export const BLOOD_GROUPS: [string, string, number][] = [
+  // abo, rh, share of supply
+  ["O", "+", 0.38], ["A", "+", 0.32], ["B", "+", 0.1], ["O", "-", 0.07],
+  ["A", "-", 0.06], ["AB", "+", 0.04], ["B", "-", 0.02], ["AB", "-", 0.01],
+];

@@ -4,14 +4,10 @@
 import pg from "pg";
 import { execFileSync } from "node:child_process";
 import { loadEnv, optional, required } from "../src/config.js";
+import { rng } from "../src/random.js";
+import { BLOOD_GROUPS } from "../src/sites.js";
 
 loadEnv();
-
-const BLOOD_GROUPS: [string, string, number][] = [
-  // abo, rh, share of supply
-  ["O", "+", 0.38], ["A", "+", 0.32], ["B", "+", 0.1], ["O", "-", 0.07],
-  ["A", "-", 0.06], ["AB", "+", 0.04], ["B", "-", 0.02], ["AB", "-", 0.01],
-];
 
 interface SiteSeed {
   id: "SITE_A" | "SITE_B" | "SITE_C";
@@ -46,17 +42,6 @@ export interface Usage {
   abo: string;
   rh: string;
   units_used: number;
-}
-
-function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 function pickGroup(r: () => number): [string, string] {
