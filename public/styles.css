@@ -34,7 +34,23 @@ th { position: sticky; top: 0; background: var(--panel); color: var(--muted); fo
 .badge.available, .badge.open { background: #e5f4ea; color: var(--ok); }
 .badge.reserved, .badge.booked { background: #e8eefc; color: #23439a; }
 .badge.used, .badge.expired { background: #f0f0f0; color: var(--muted); }
+.plan { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin: 16px 0; }
+.plan-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button.secondary { background: var(--panel); color: var(--accent); }
+.plan-summary { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; margin: 12px 0; }
+.plan-summary strong { font-size: 20px; }
+.plan-summary .source { flex-basis: 100%; }
+.transfers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.transfer { border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+.transfer p { margin: 6px 0; }
+.transfer .message { background: var(--bg); padding: 8px; border-radius: 4px; }
+.reason { color: var(--err); }
+.badge.proposed { background: #f1ecfb; color: #5a3a9a; }
+.badge.requested { background: #e8eefc; color: #23439a; }
+.badge.declined, .badge.refused, .badge.failed { background: var(--err-bg); color: var(--err); }
+.status.loading { background: var(--panel); }
 @media (max-width: 480px) {
   .top, main { padding-left: 16px; padding-right: 16px; }
-  .sites { grid-template-columns: 1fr; }
+  .sites, .transfers { grid-template-columns: 1fr; }
 }

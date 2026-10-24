@@ -17,6 +17,18 @@
   </header>
   <main>
     <p id="status" class="status" role="status" aria-live="polite">Loading live stock</p>
+    <section class="plan" aria-labelledby="plan-h">
+      <div class="plan-head">
+        <h2 id="plan-h">Morning plan</h2>
+        <div class="actions">
+          <button id="run-plan" type="button">Run morning plan</button>
+          <button id="send" type="button" class="secondary" hidden>Send requests</button>
+        </div>
+      </div>
+      <p id="plan-status" class="status" role="status" aria-live="polite" hidden></p>
+      <div id="plan-summary" class="plan-summary" hidden></div>
+      <div id="transfers" class="transfers"></div>
+    </section>
     <section id="sites" class="sites" aria-label="Sites"></section>
     <section class="courier" aria-labelledby="courier-h">
       <h2 id="courier-h">Courier slots <span class="tag mock">Mock courier</span></h2>

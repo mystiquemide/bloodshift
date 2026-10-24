@@ -4,6 +4,8 @@ import { extname, join, normalize } from "node:path";
 import { loadEnv, optional, required } from "./config.js";
 import { ZetarisClient } from "./zetaris.js";
 import { readNetworkStock } from "./stock.js";
+import { TransferStore } from "./transfers.js";
+import { PlanAborted, runPlan, sendProposals, templateMessenger, type Messenger } from "./planner.js";
 
 loadEnv();
 
@@ -13,6 +15,11 @@ const zetaris = new ZetarisClient({
   password: required("ZETARIS_PASSWORD"),
   orgId: process.env.ZETARIS_ORG_ID,
 });
+
+// Refuses to start if the World Model log can't be replayed
+const store = await TransferStore.open({ directory: optional("WORLD_DIR", "data") });
+const messenger: Messenger = templateMessenger;
+let planInFlight = false;
 
 const PUBLIC_DIR = join(import.meta.dirname, "..", "public");
 const TYPES: Record<string, string> = {
@@ -41,9 +48,37 @@ async function serveStatic(path: string, res: ServerResponse) {
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
+  // State-changing calls must carry a custom header. A cross-site form or fetch can't add one
+  // without a CORS preflight, which this server never approves.
+  if (req.method === "POST" && req.headers["x-bloodshift"] !== "1") {
+    return json(res, 403, { error: "Missing request header" });
+  }
   try {
     if (req.method === "GET" && url.pathname === "/api/stock") {
       return json(res, 200, await readNetworkStock(zetaris));
+    }
+    if (req.method === "GET" && url.pathname === "/api/transfers") {
+      return json(res, 200, { transfers: store.list() });
+    }
+    const history = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/history$/);
+    if (req.method === "GET" && history) {
+      const t = store.get(history[1]!);
+      return t ? json(res, 200, { transfer: t, history: store.history(t.id) }) : json(res, 404, { error: "No such transfer" });
+    }
+    if (req.method === "POST" && url.pathname === "/api/plan") {
+      if (planInFlight) return json(res, 409, { error: "A plan is already running." });
+      planInFlight = true;
+      try {
+        return json(res, 200, await runPlan(zetaris, store, messenger));
+      } catch (err) {
+        if (err instanceof PlanAborted) return json(res, 503, { error: err.message });
+        throw err;
+      } finally {
+        planInFlight = false;
+      }
+    }
+    if (req.method === "POST" && url.pathname === "/api/transfers/send") {
+      return json(res, 200, { sent: await sendProposals(store, "coordinator") });
     }
     if (req.method === "GET") return serveStatic(url.pathname, res);
     json(res, 405, { error: "method not allowed" });

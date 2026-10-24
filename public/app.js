@@ -90,5 +90,96 @@ async function load() {
   }
 }
 
+const SITE_NAMES = { SITE_A: "Northgate General", SITE_B: "Riverside Medical", SITE_C: "Hillcrest Community" };
+const siteName = (id) => SITE_NAMES[id] ?? id;
+
+async function post(path) {
+  const res = await fetch(path, { method: "POST", headers: { "X-Bloodshift": "1" } });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+  return body;
+}
+
+function planStatus(kind, text) {
+  const p = $("#plan-status");
+  p.hidden = !text;
+  p.className = "status " + kind;
+  p.textContent = text ?? "";
+}
+
+function transferCard(t) {
+  const e = t.evidence;
+  return el("article", { class: "transfer" },
+    el("div", { class: "transfer-head" },
+      el("strong", {}, t.unitId), " ",
+      el("span", { class: "tag" }, `${t.abo}${t.rh}${t.irradiated ? " irradiated" : ""}`), " ",
+      el("span", { class: `badge ${t.state}` }, t.state)),
+    el("p", {}, `${siteName(t.from)} to ${siteName(t.to)}, courier slot ${t.slotId}, arrives ${time(t.arrivesAt)}`),
+    el("p", { class: "message" }, t.message),
+    t.reason ? el("p", { class: "reason" }, t.reason) : "",
+    el("p", { class: "source" }, `Source row: ${e.source}. Status ${e.status}, expires ${time(e.expiresAt)}, read ${time(e.queriedAt)}.`),
+    el("p", { class: "source" }, t.messageBy === "nemotron" ? "Request written by Nemotron" : "Request from the standard template"));
+}
+
+function renderTransfers(transfers) {
+  const shown = transfers.filter((t) => t.state !== "superseded");
+  $("#transfers").replaceChildren(...(shown.length ? shown.map(transferCard) : [el("p", { class: "empty" }, "No transfers yet. Run the morning plan.")]));
+  $("#send").hidden = !transfers.some((t) => t.state === "proposed");
+}
+
+function renderSummary(run) {
+  const box = $("#plan-summary");
+  box.hidden = false;
+  const reduction = run.outdatesBefore ? Math.round((1 - run.outdatesAfter / run.outdatesBefore) * 100) : 0;
+  box.replaceChildren(
+    el("div", {}, el("strong", {}, run.outdatesBefore), " projected outdates without the plan"),
+    el("div", {}, el("strong", {}, run.outdatesAfter), " with the plan", run.outdatesBefore ? ` (${reduction}% fewer)` : ""),
+    el("div", {}, el("strong", {}, run.transfers.length), " transfers proposed"),
+    el("p", { class: "source" }, "Projection from live stock and 30 days of usage history. Not a measured result."));
+}
+
+async function loadTransfers() {
+  try {
+    const res = await fetch("/api/transfers");
+    renderTransfers((await res.json()).transfers);
+  } catch (err) {
+    planStatus("error", `Couldn't load transfers: ${err.message}`);
+  }
+}
+
+$("#run-plan").addEventListener("click", async () => {
+  const btn = $("#run-plan");
+  btn.disabled = true;
+  planStatus("loading", "Planning. Reading live stock and usage through Zetaris.");
+  try {
+    const run = await post("/api/plan");
+    renderSummary(run);
+    planStatus(run.modelNotice ? "partial" : "loaded",
+      run.modelNotice ? `Planned without model. ${run.modelNotice}` :
+      run.transfers.length ? "Planned." : "Planned. No transfer would prevent an outdate right now.");
+    await loadTransfers();
+    load();
+  } catch (err) {
+    planStatus("error", err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#send").addEventListener("click", async () => {
+  const btn = $("#send");
+  btn.disabled = true;
+  try {
+    const { sent } = await post("/api/transfers/send");
+    planStatus("loaded", `Sent ${sent.length} request${sent.length === 1 ? "" : "s"} to the receiving sites.`);
+    await loadTransfers();
+  } catch (err) {
+    planStatus("error", `Couldn't send: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 $("#refresh").addEventListener("click", load);
 load();
+loadTransfers();
