@@ -43,15 +43,17 @@ function siteName(id: SiteId): string {
 // before they go into SQL, since the Zetaris HTTP API takes no bind parameters.
 export async function readSource(zetaris: Querier, t: Pick<TransferRecord, "unitId" | "from" | "slotId">): Promise<SourceCheck> {
   if (!ID.test(t.unitId) || !ID.test(t.slotId)) throw new AcceptError("Malformed unit or slot ID", 400);
-  const [unit, slot] = await Promise.all([
-    zetaris.query(`SELECT unit_id, status, reserved_for, expires_at, updated_at FROM ${sourceOf(t.from)}.platelet_units WHERE unit_id = '${t.unitId}'`),
-    zetaris.query(`SELECT slot_id, status, booking_id FROM ${COURIER_SOURCE}.slots WHERE slot_id = '${t.slotId}'`),
-  ]);
-  const u = unit.rows[0];
-  const s = slot.rows[0];
+  const sql = [
+    `SELECT unit_id, status, reserved_for, expires_at, updated_at FROM ${sourceOf(t.from)}.platelet_units WHERE unit_id = '${t.unitId}'`,
+    `SELECT slot_id, status, booking_id FROM ${COURIER_SOURCE}.slots WHERE slot_id = '${t.slotId}'`,
+  ];
+  const [unit, slot] = await Promise.all(sql.map((q) => zetaris.query(q)));
+  const u = unit!.rows[0];
+  const s = slot!.rows[0];
   const text = (v: unknown) => (v === null || v === undefined || String(v).trim() === "" || v === "null" ? null : String(v));
   return {
-    queriedAt: unit.queriedAt,
+    sql,
+    queriedAt: unit!.queriedAt,
     unitStatus: u ? text(u.status) : null,
     reservedFor: u ? text(u.reserved_for) : null,
     expiresAt: u && text(u.expires_at) ? isoTime(u.expires_at) : null,

@@ -131,7 +131,44 @@ function transferCard(t, actions = []) {
     el("p", { class: "source" }, `Planned from: ${e.source}. Status ${e.status}, expires ${time(e.expiresAt)}, read ${time(e.queriedAt)}.`),
     t.state === "reserved" ? snapshotLine("Confirmed", t.confirmation) : snapshotLine("Checked", t.check),
     el("p", { class: "source" }, t.messageBy === "nemotron" ? "Request written by Nemotron" : "Request from the standard template"),
+    proofDrawer(t),
     actions.length ? el("div", { class: "actions" }, ...actions) : "");
+}
+
+function sqlBlock(label, sql, when, detail) {
+  if (!sql || !sql.length) return "";
+  return el("div", { class: "proof-step" },
+    el("p", {}, el("strong", {}, label), ` via Zetaris at ${new Date(when).toISOString().replace("T", " ").slice(0, 19)} UTC`),
+    ...[].concat(sql).map((q) => el("pre", {}, q)),
+    detail ? el("p", { class: "source" }, detail) : "");
+}
+
+function snapshotDetail(c) {
+  return `Returned: unit ${c.unitStatus ?? "not found"}${c.reservedFor ? ` for ${c.reservedFor}` : ""}, expires ${c.expiresAt ?? "?"}, slot ${c.slotStatus ?? "not found"}${c.bookingId ? ` (${c.bookingId})` : ""}.`;
+}
+
+// Everything a judge needs to see that the decision came from live rows, loaded on demand
+function proofDrawer(t) {
+  const body = el("div", { class: "proof-body" });
+  const box = el("details", { class: "proof" }, el("summary", {}, "Proof"), body);
+  box.addEventListener("toggle", async () => {
+    if (!box.open || body.childElementCount) return;
+    body.append(el("p", { class: "source" }, "Loading history"));
+    try {
+      const { transfer: x, history } = await (await fetch(`/api/transfers/${encodeURIComponent(t.id)}/history`)).json();
+      body.replaceChildren(
+        sqlBlock("Planned from", x.evidence.sql, x.evidence.queriedAt, `Returned: ${x.evidence.status}, expires ${x.evidence.expiresAt}. Source: ${x.evidence.source}.`),
+        x.check ? sqlBlock("Re-checked at accept", x.check.sql, x.check.queriedAt, snapshotDetail(x.check)) : "",
+        x.confirmation ? sqlBlock("Confirmed after the writes", x.confirmation.sql, x.confirmation.queriedAt, snapshotDetail(x.confirmation)) : "",
+        x.bookingId ? el("p", {}, el("strong", {}, "Courier booking "), x.bookingId) : "",
+        el("p", {}, el("strong", {}, "History")),
+        el("ol", { class: "history" }, ...history.map((h) => el("li", {}, `${h.state} by ${h.by}, ${new Date(h.at).toISOString().replace("T", " ").slice(0, 19)} UTC${h.reason ? `: ${h.reason}` : ""}`))),
+        el("p", { class: "source" }, `Transfer ${x.id}, recorded in the Meterless World Model event log.`));
+    } catch (err) {
+      body.replaceChildren(el("p", { class: "reason" }, `Couldn't load the proof: ${err.message}`));
+    }
+  });
+  return box;
 }
 
 function renderTransfers(transfers) {

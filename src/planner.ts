@@ -3,7 +3,7 @@
 // transfer in the World Model.
 import { randomUUID } from "node:crypto";
 import { SITES, SITE_POLICIES, type SiteId } from "./sites.js";
-import { readNetworkStock, readUsage, type NetworkStock, type Querier } from "./stock.js";
+import { readNetworkStock, readUsage, unitsSql, type NetworkStock, type Querier } from "./stock.js";
 import { assertLiveUnits, buildCandidates, buildDemand, buildPlan, groupOf, rankCandidates, type Candidate, type PlanInput, type Transfer } from "./rules.js";
 import { ACTIVE, MOVED, type TransferRecord, type TransferStore } from "./transfers.js";
 import { templateDecider, type Decider, type DecisionOutcome, type DecisionRequest } from "./nemotron.js";
@@ -59,6 +59,7 @@ async function readLive(deps: PlannerDeps, now: Date, superseding: boolean): Pro
   // units toward a site whose stock we can't see, so the run stops.
   const down = stock.sites.filter((s) => !s.status.ok).map((s) => s.site.name);
   if (!stock.courier.status.ok) down.push("the courier service");
+  if (down.length === stock.sites.length + 1) throw new PlanAborted("Plan not run: Zetaris isn't answering, so no source can be read.");
   if (down.length) throw new PlanAborted(`Plan not run: can't read ${down.join(", ")} right now.`);
   if (!usage) throw new PlanAborted("Plan not run: can't read usage history through Zetaris.");
 
@@ -180,6 +181,7 @@ async function record(deps: PlannerDeps, ctx: LiveContext, chosen: Chosen, planI
           messageBy: byModel ? "nemotron" : "template",
           evidence: {
             source: t.unit.source,
+            sql: unitsSql(site.site),
             queriedAt: site.status.ok ? site.status.queriedAt : ctx.input.now.toISOString(),
             status: t.unit.status,
             expiresAt: t.unit.expiresAt,

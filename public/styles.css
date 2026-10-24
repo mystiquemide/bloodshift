@@ -51,6 +51,12 @@ button.secondary { background: var(--panel); color: var(--accent); }
 .decline-form { margin-top: 8px; display: grid; gap: 6px; }
 textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; resize: vertical; width: 100%; }
 textarea:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }
+.proof { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
+.proof summary { cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 600; }
+.proof summary:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }
+.proof-step { margin: 8px 0; }
+.proof pre { margin: 4px 0; padding: 6px 8px; background: #1b1f24; color: #e6e9ee; border-radius: 4px; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+.history { margin: 4px 0 8px; padding-left: 20px; font-size: 13px; }
 .badge.superseded { background: #f0f0f0; color: var(--muted); }
 .switcher { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 select { font: inherit; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }

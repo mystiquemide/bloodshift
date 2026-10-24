@@ -32,6 +32,8 @@ export const MOVED: TransferState[] = ["reserved", "dispatched", "received"];
 
 export interface SourceEvidence {
   source: string;
+  // The Zetaris query the plan read this unit with
+  sql?: string;
   queriedAt: string;
   status: string;
   expiresAt: string;
@@ -67,6 +69,8 @@ export interface TransferRecord {
 }
 
 export interface SourceSnapshot {
+  // The Zetaris queries behind this snapshot
+  sql?: string[];
   queriedAt: string;
   unitStatus: string | null;
   reservedFor: string | null;
