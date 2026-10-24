@@ -82,7 +82,7 @@ select:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }
 .hero h2 { font-size: 22px; }
 .steps { padding-left: 20px; }
 .steps li { margin: 6px 0; }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .card { border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
 .card h3 { margin: 0 0 6px; font-size: 15px; }
 .card p { margin: 0; }
@@ -90,6 +90,7 @@ select:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }
 .button-link { display: inline-block; padding: 8px 16px; border-radius: 6px; background: var(--accent); color: #fff; text-decoration: none; }
 .button-link:focus-visible, .doc a:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }
 .doc td { white-space: normal; }
+.doc .table-wrap { max-height: none; }
 .notes-h { margin: 16px 0 6px; font-size: 15px; }
 .notes { list-style: none; margin: 0; padding: 0; }
 .notes li { border-top: 1px solid var(--line); padding: 6px 0; }
