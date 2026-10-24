@@ -46,6 +46,13 @@ button.secondary { background: var(--panel); color: var(--accent); }
 .transfer p { margin: 6px 0; }
 .transfer .message { background: var(--bg); padding: 8px; border-radius: 4px; }
 .reason { color: var(--err); }
+.ok { color: var(--ok); font-weight: 600; }
+.switcher { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+select { font: inherit; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+select:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }
+.badge.checking { background: #fff4e0; color: var(--warn); }
+.badge.reserved { background: #e5f4ea; color: var(--ok); }
+.transfer .actions { margin-top: 8px; }
 .badge.proposed { background: #f1ecfb; color: #5a3a9a; }
 .badge.requested { background: #e8eefc; color: #23439a; }
 .badge.declined, .badge.refused, .badge.failed { background: var(--err-bg); color: var(--err); }

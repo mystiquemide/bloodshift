@@ -53,7 +53,22 @@ export interface TransferRecord {
   evidence: SourceEvidence;
   state: TransferState;
   reason?: string;
+  // Live source read at accept time, the evidence for a refusal or a reservation
+  check?: SourceSnapshot;
+  bookingId?: string;
+  // The Zetaris read after the writes, showing the reservation and the booking
+  confirmation?: SourceSnapshot | null;
   updatedAt: string;
+}
+
+export interface SourceSnapshot {
+  queriedAt: string;
+  unitStatus: string | null;
+  reservedFor: string | null;
+  expiresAt: string | null;
+  unitUpdatedAt: string | null;
+  slotStatus: string | null;
+  bookingId: string | null;
 }
 
 export interface HistoryEntry {
@@ -185,6 +200,9 @@ export class TransferStore {
       evidence: a.evidence as SourceEvidence,
       state: a.state as TransferState,
       reason: typeof a.reason === "string" && a.reason ? a.reason : undefined,
+      check: (a.check as SourceSnapshot | undefined) ?? undefined,
+      bookingId: typeof a.bookingId === "string" ? a.bookingId : undefined,
+      confirmation: (a.confirmation as SourceSnapshot | null | undefined) ?? undefined,
       updatedAt: states.at(-1)?.at ?? "",
     };
   }

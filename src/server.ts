@@ -6,6 +6,11 @@ import { ZetarisClient } from "./zetaris.js";
 import { readNetworkStock } from "./stock.js";
 import { TransferStore } from "./transfers.js";
 import { PlanAborted, runPlan, sendProposals, templateMessenger, type Messenger } from "./planner.js";
+import { AcceptError, acceptTransfer } from "./accept.js";
+import { CourierClient } from "./courier.js";
+import { siteWritersFromEnv } from "./siteWriters.js";
+import { SITES, type SiteId } from "./sites.js";
+import type { IncomingMessage } from "node:http";
 
 loadEnv();
 
@@ -20,6 +25,28 @@ const zetaris = new ZetarisClient({
 const store = await TransferStore.open({ directory: optional("WORLD_DIR", "data") });
 const messenger: Messenger = templateMessenger;
 let planInFlight = false;
+const writers = siteWritersFromEnv();
+const courier = new CourierClient(`http://127.0.0.1:${optional("COURIER_PORT", "8090")}`);
+
+async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+  let raw = "";
+  for await (const chunk of req) {
+    raw += chunk;
+    if (raw.length > 10_000) throw new AcceptError("Request body too large", 400);
+  }
+  try {
+    const body = raw ? JSON.parse(raw) : {};
+    return body && typeof body === "object" ? body : {};
+  } catch {
+    throw new AcceptError("Request body isn't valid JSON", 400);
+  }
+}
+
+function siteFrom(body: Record<string, unknown>): SiteId {
+  const site = body.site;
+  if (typeof site !== "string" || !SITES.some((s) => s.id === site)) throw new AcceptError("Unknown site", 400);
+  return site as SiteId;
+}
 
 const PUBLIC_DIR = join(import.meta.dirname, "..", "public");
 const TYPES: Record<string, string> = {
@@ -77,12 +104,18 @@ const server = createServer(async (req, res) => {
         planInFlight = false;
       }
     }
+    const accept = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/(accept|retry)$/);
+    if (req.method === "POST" && accept) {
+      const site = siteFrom(await readJson(req));
+      return json(res, 200, { transfer: await acceptTransfer({ zetaris, store, writers, courier }, accept[1]!, site) });
+    }
     if (req.method === "POST" && url.pathname === "/api/transfers/send") {
       return json(res, 200, { sent: await sendProposals(store, "coordinator") });
     }
     if (req.method === "GET") return serveStatic(url.pathname, res);
     json(res, 405, { error: "method not allowed" });
   } catch (err) {
+    if (err instanceof AcceptError) return json(res, err.status, { error: err.message });
     console.error(err);
     json(res, 500, { error: "Internal error. Check the server log." });
   }

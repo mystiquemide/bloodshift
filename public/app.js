@@ -107,18 +107,29 @@ function planStatus(kind, text) {
   p.textContent = text ?? "";
 }
 
-function transferCard(t) {
+function snapshotLine(label, c) {
+  if (!c) return "";
+  const unit = c.unitStatus ? `unit ${c.unitStatus}${c.reservedFor ? ` for ${c.reservedFor}` : ""}` : "unit not found";
+  const slot = c.slotStatus ? `slot ${c.slotStatus}${c.bookingId ? ` (${c.bookingId})` : ""}` : "slot not found";
+  return el("p", { class: "source" }, `${label} via Zetaris at ${time(c.queriedAt)}: ${unit}, ${slot}.`);
+}
+
+function transferCard(t, actions = []) {
   const e = t.evidence;
-  return el("article", { class: "transfer" },
+  const stateText = t.state === "checking" ? "checking source" : t.state;
+  return el("article", { class: "transfer", "data-id": t.id },
     el("div", { class: "transfer-head" },
       el("strong", {}, t.unitId), " ",
       el("span", { class: "tag" }, `${t.abo}${t.rh}${t.irradiated ? " irradiated" : ""}`), " ",
-      el("span", { class: `badge ${t.state}` }, t.state)),
+      el("span", { class: `badge ${t.state}` }, stateText)),
     el("p", {}, `${siteName(t.from)} to ${siteName(t.to)}, courier slot ${t.slotId}, arrives ${time(t.arrivesAt)}`),
+    t.state === "reserved" ? el("p", { class: "ok" }, `Reserved at ${siteName(t.from)}. Courier booking ${t.bookingId}.`) : "",
+    t.reason ? el("p", { class: "reason" }, t.state === "refused" ? `Refused: ${t.reason}` : t.reason) : "",
     el("p", { class: "message" }, t.message),
-    t.reason ? el("p", { class: "reason" }, t.reason) : "",
-    el("p", { class: "source" }, `Source row: ${e.source}. Status ${e.status}, expires ${time(e.expiresAt)}, read ${time(e.queriedAt)}.`),
-    el("p", { class: "source" }, t.messageBy === "nemotron" ? "Request written by Nemotron" : "Request from the standard template"));
+    el("p", { class: "source" }, `Planned from: ${e.source}. Status ${e.status}, expires ${time(e.expiresAt)}, read ${time(e.queriedAt)}.`),
+    t.state === "reserved" ? snapshotLine("Confirmed", t.confirmation) : snapshotLine("Checked", t.check),
+    el("p", { class: "source" }, t.messageBy === "nemotron" ? "Request written by Nemotron" : "Request from the standard template"),
+    actions.length ? el("div", { class: "actions" }, ...actions) : "");
 }
 
 function renderTransfers(transfers) {
@@ -180,6 +191,82 @@ $("#send").addEventListener("click", async () => {
   }
 });
 
-$("#refresh").addEventListener("click", load);
+let view = "COORDINATOR";
+try { view = localStorage.getItem("bloodshift-view") || view; } catch {}
+
+async function act(t, kind, btn) {
+  btn.disabled = true;
+  const card = btn.closest(".transfer");
+  card.querySelector(".badge").className = "badge checking";
+  card.querySelector(".badge").textContent = `checking ${siteName(t.from)}`;
+  try {
+    await postJson(`/api/transfers/${encodeURIComponent(t.id)}/${kind}`, { site: view });
+  } catch (err) {
+    inboxStatus("error", err.message);
+  }
+  // Both panels re-read through Zetaris, so the stock table shows the reservation too
+  await Promise.all([loadInbox(), load()]);
+}
+
+async function postJson(path, body) {
+  const res = await fetch(path, { method: "POST", headers: { "X-Bloodshift": "1", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error ?? `HTTP ${res.status}`);
+  return out;
+}
+
+function inboxStatus(kind, text) {
+  const p = $("#inbox-status");
+  p.hidden = !text;
+  p.className = "status " + kind;
+  p.textContent = text ?? "";
+}
+
+async function loadInbox() {
+  try {
+    const res = await fetch("/api/transfers");
+    const mine = (await res.json()).transfers.filter((t) => t.to === view && !["proposed", "superseded"].includes(t.state));
+    mine.sort((a, b) => (a.state === "requested" ? -1 : 0) - (b.state === "requested" ? -1 : 0) || b.updatedAt.localeCompare(a.updatedAt));
+    const cards = mine.map((t) => {
+      const actions = [];
+      if (t.state === "requested") {
+        const b = el("button", { type: "button" }, "Accept");
+        b.addEventListener("click", () => act(t, "accept", b));
+        actions.push(b);
+      }
+      if (t.state === "failed") {
+        const b = el("button", { type: "button" }, "Retry");
+        b.addEventListener("click", () => act(t, "retry", b));
+        actions.push(b);
+      }
+      return transferCard(t, actions);
+    });
+    $("#inbox-list").replaceChildren(...(cards.length ? cards : [el("p", { class: "empty" }, "No transfer requests for this site.")]));
+  } catch (err) {
+    inboxStatus("error", `Couldn't load the inbox: ${err.message}`);
+  }
+}
+
+function applyView() {
+  $("#view").value = view;
+  const coordinator = view === "COORDINATOR";
+  $("#coordinator").hidden = !coordinator;
+  $("#inbox").hidden = coordinator;
+  if (!coordinator) {
+    $("#inbox-h").textContent = `${siteName(view)} inbox`;
+    inboxStatus("", "");
+    loadInbox();
+  } else {
+    loadTransfers();
+  }
+}
+
+$("#view").addEventListener("change", (e) => {
+  view = e.target.value;
+  try { localStorage.setItem("bloodshift-view", view); } catch {}
+  applyView();
+});
+
+$("#refresh").addEventListener("click", () => { load(); applyView(); });
 load();
-loadTransfers();
+applyView();

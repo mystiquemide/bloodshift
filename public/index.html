@@ -13,11 +13,26 @@
       <h1>Bloodshift</h1>
       <p class="sub">Network platelet stock, read live from each hospital's own system through Zetaris</p>
     </div>
-    <button id="refresh" type="button">Refresh</button>
+    <div class="actions">
+      <label class="switcher">View as
+        <select id="view">
+          <option value="COORDINATOR">Network coordinator</option>
+          <option value="SITE_A">Northgate General lab</option>
+          <option value="SITE_B">Riverside Medical lab</option>
+          <option value="SITE_C">Hillcrest Community lab</option>
+        </select>
+      </label>
+      <button id="refresh" type="button">Refresh</button>
+    </div>
   </header>
   <main>
     <p id="status" class="status" role="status" aria-live="polite">Loading live stock</p>
-    <section class="plan" aria-labelledby="plan-h">
+    <section id="inbox" class="plan" aria-labelledby="inbox-h" hidden>
+      <h2 id="inbox-h">Inbox</h2>
+      <p id="inbox-status" class="status" role="status" aria-live="polite" hidden></p>
+      <div id="inbox-list" class="transfers"></div>
+    </section>
+    <section id="coordinator" class="plan" aria-labelledby="plan-h">
       <div class="plan-head">
         <h2 id="plan-h">Morning plan</h2>
         <div class="actions">
