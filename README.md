@@ -28,6 +28,17 @@ npm start                   # http://localhost:4000
 
 Use "View as" to switch between the network coordinator and each hospital's lab.
 
+### On a server
+
+`infra/deploy.sh` sets up Zetaris and Bloodshift on one Ubuntu 24.04 server. Download `zetaris-platform.zip` from Zetaris Cloud ("Run locally") onto the server, then:
+
+```bash
+git clone https://github.com/mystiquemide/open-agent.git && cd open-agent
+sudo ZETARIS_ZIP=/root/zetaris-platform.zip MODE=standalone bash infra/deploy.sh
+```
+
+It asks for a Zetaris admin password, an optional NVIDIA key and the Zetaris registry login, keeps Zetaris on 127.0.0.1, and serves Bloodshift over HTTPS at `bloodshift.<ip>.sslip.io`. Use `MODE=proxy` when another reverse proxy already holds ports 80 and 443. The server needs about 4 GB of free memory and 15 GB of disk.
+
 ## Try it
 
 - **Live read.** Change a unit at its source, then click Refresh:

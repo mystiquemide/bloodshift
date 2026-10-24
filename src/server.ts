@@ -182,4 +182,6 @@ const server = createServer(async (req, res) => {
 });
 
 const port = Number(optional("PORT", "4000"));
-server.listen(port, "127.0.0.1", () => console.log(`Bloodshift on http://localhost:${port}`));
+// Loopback by default. Behind a reverse proxy in another container, set HOST so the proxy can reach it.
+const host = optional("HOST", "127.0.0.1");
+server.listen(port, host, () => console.log(`Bloodshift on http://${host === "0.0.0.0" ? "localhost" : host}:${port}`));

@@ -6,6 +6,7 @@ services:
   site_a:
     image: postgres:16-alpine
     container_name: bs_site_a
+    restart: unless-stopped
     environment:
       POSTGRES_DB: site_a
       POSTGRES_USER: ${SITE_A_USER:-site_a}
@@ -19,6 +20,7 @@ services:
   site_b:
     image: postgres:16-alpine
     container_name: bs_site_b
+    restart: unless-stopped
     environment:
       POSTGRES_DB: site_b
       POSTGRES_USER: ${SITE_B_USER:-site_b}
@@ -32,6 +34,7 @@ services:
   courier:
     image: node:22-alpine
     container_name: bs_courier
+    restart: unless-stopped
     working_dir: /app
     command: ["node", "server.mjs"]
     environment:
