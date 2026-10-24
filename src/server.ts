@@ -14,6 +14,7 @@ import { CourierClient } from "./courier.js";
 import { siteWritersFromEnv } from "./siteWriters.js";
 import { SITES, type SiteId } from "./sites.js";
 import type { IncomingMessage } from "node:http";
+import { compare, DEFAULT_SITES } from "./simulation.js";
 
 loadEnv();
 
@@ -37,6 +38,27 @@ const decider: Decider = process.env.NVIDIA_API_KEY
 const planner: PlannerDeps = { zetaris, store, decider, memory };
 console.log(`Requests and replans by ${decider.name === "nemotron" ? `Nemotron (${optional("NEMOTRON_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")})` : "the standard template"}`);
 let planInFlight = false;
+
+// The simulation is deterministic, so it's computed once on first request.
+// It runs on synthetic data and never touches live sources or the live view.
+let simulation: unknown = null;
+function simulationSummary(): unknown {
+  if (simulation) return simulation;
+  const seeds = Array.from({ length: 20 }, (_, i) => 1000 + i);
+  const s = compare(seeds);
+  const byGroup = (policy: "noSharing" | "rule") => {
+    const out: Record<string, number> = {};
+    for (const run of s.perSeed) for (const [g, n] of Object.entries(run[policy].outdatesByGroup)) out[g] = (out[g] ?? 0) + n / s.perSeed.length;
+    return out;
+  };
+  simulation = {
+    runs: s.runs, days: s.days, sites: DEFAULT_SITES,
+    noSharing: s.noSharing, rule: s.rule,
+    outdateReduction: s.outdateReduction, outdateReductionRange: s.outdateReductionRange,
+    outdatesByGroup: { noSharing: byGroup("noSharing"), rule: byGroup("rule") },
+  };
+  return simulation;
+}
 const writers = siteWritersFromEnv();
 const courier = new CourierClient(`http://127.0.0.1:${optional("COURIER_PORT", "8090")}`);
 
@@ -128,6 +150,9 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && decline) {
       const body = await readJson(req);
       return json(res, 200, await declineTransfer(planner, decline[1]!, siteFrom(body), body.reason));
+    }
+    if (req.method === "GET" && url.pathname === "/api/simulation") {
+      return json(res, 200, simulationSummary());
     }
     if (req.method === "GET" && url.pathname === "/api/declines") {
       return json(res, 200, { declines: memory.all() });

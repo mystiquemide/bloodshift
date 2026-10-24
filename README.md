@@ -45,12 +45,12 @@ Use "View as" to switch between the network coordinator and each hospital's lab.
 |---|---|
 | `npm test` | Unit tests, including one passing and one failing case per business rule |
 | `npm run typecheck` | TypeScript checks |
-| `npm run simulate` | 30-day simulation of the rule against no sharing, over 20 seeds |
+| `npm run simulate` | 30-day simulation of the rule against no sharing, over 20 seeds by default. `npm run simulate -- 100` for more |
 | `npm run eval:declines` | 10 decline scenarios against the live Nemotron model |
 
 ## Results so far
 
-- In simulation, the rule cuts outdated platelets by about 12% against no sharing, and by about a third for the most common groups, with slightly fewer shortages. The simulation uses synthetic demand and isn't a measured result.
+- In simulation, the rule cuts outdated platelets by 12.8% against no sharing over the 20 runs shown on the Simulation page, and 11.6% over 100 runs. Outdates of the most common groups, O+ and A+, fall by about a third, with slightly fewer shortages. The simulation uses synthetic demand and isn't a measured result.
 - The decline evaluation gave valid replans in 8 to 10 of 10 scenarios per run, including a reason that tries to inject instructions.
 
 ## Limits

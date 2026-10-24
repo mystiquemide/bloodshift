@@ -68,6 +68,16 @@ select:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }
 .badge.requested { background: #e8eefc; color: #23439a; }
 .badge.declined, .badge.refused, .badge.failed { background: var(--err-bg); color: var(--err); }
 .status.loading { background: var(--panel); }
+.banner.sim { background: #5a3a9a; }
+.link-button { display: inline-block; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--accent); color: var(--accent); text-decoration: none; background: var(--panel); }
+.link-button:focus-visible { outline: 3px solid #1b1f24; outline-offset: 2px; }
+.method { margin: 8px 0; padding-left: 20px; }
+.method li { margin: 4px 0; }
+.bar-cell { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.bar { display: inline-block; height: 12px; border-radius: 3px; }
+.bar.before { background: #9aa3ad; }
+.bar.after { background: var(--accent); }
+.bar-label { font-variant-numeric: tabular-nums; }
 @media (max-width: 480px) {
   .top, main { padding-left: 16px; padding-right: 16px; }
   .sites, .transfers { grid-template-columns: 1fr; }

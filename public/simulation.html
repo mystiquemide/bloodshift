@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bloodshift simulation</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="banner sim" role="note">Simulation on synthetic demand. Not live data, and nothing here feeds the live view.</div>
+  <header class="top">
+    <div>
+      <h1>Bloodshift</h1>
+      <p class="sub">30-day simulation: the transfer rule against no sharing</p>
+    </div>
+    <a class="link-button" href="/">Back to live network</a>
+  </header>
+  <main>
+    <p id="status" class="status loading" role="status" aria-live="polite">Running the simulation</p>
+    <section class="plan" aria-labelledby="results-h">
+      <h2 id="results-h">Results</h2>
+      <div id="summary" class="plan-summary"></div>
+      <div class="table-wrap"><table id="groups"><thead><tr><th>Group</th><th>No sharing</th><th>With the rule</th><th>Change</th></tr></thead><tbody></tbody></table></div>
+      <p class="source">Mean outdated units per 30-day run, by ABO and RhD group.</p>
+    </section>
+    <section class="plan" aria-labelledby="method-h">
+      <h2 id="method-h">How it works</h2>
+      <ul class="method">
+        <li>Three hospitals with the same demand profile as the demo. One over-orders for its usage, one runs lean.</li>
+        <li>Each morning, sites order up to a par level of their own demand. Units arrive with 3 to 4 days of shelf life. Sites don't stock AB platelets.</li>
+        <li>Demand per blood group is random (Poisson). Both policies see exactly the same demand and deliveries, so differences come from the rule alone.</li>
+        <li>Patients get platelets in the order set by the SNBTS Policy for Platelet Selection: identical group first, then compatible groups. Group O never goes to non-O patients, and RhD-positive never goes to RhD-negative patients.</li>
+        <li>With the rule, the same engine the live app uses runs every morning and moves units projected to expire unused to a site that will use them.</li>
+        <li>Each run has a 5-day warm-up, then 30 counted days. Results are averaged over 20 runs.</li>
+      </ul>
+      <p class="source">Published programs that also changed ordering and practice reported about 20% fewer outdates at Emory (Zhang et al., Operations Research 2023) and waste falling from 17% to 7.8% in Adelaide (BloodMove). This simulation tests transfers alone.</p>
+    </section>
+  </main>
+  <script src="/simulation.js" type="module"></script>
+</body>
+</html>
