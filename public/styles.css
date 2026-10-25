@@ -249,3 +249,17 @@ td.warn { color: var(--yellow-45); font-weight: 600; }
 .table-wrap.inner td:last-child { white-space: normal; }
 .table-wrap.inner .for { display: block; font-size: 12px; color: var(--grey-text); margin-top: 2px; }
 .table-wrap.inner th, .table-wrap.inner td { padding: 8px 9px; }
+
+/* Step 3: lab inbox */
+.inbox-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.count { font-size: 14px; font-weight: 600; padding: 4px 12px; border-radius: 9999px; background: var(--grey-1); color: var(--grey-text); }
+.count.has { background: var(--coral-3); color: var(--plum-5); }
+.inbox-group { margin: 20px 0 8px; }
+.inbox-group h3 { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
+.inbox-group h3 .n { font-size: 13px; color: var(--grey-text); background: var(--grey-1); padding: 2px 9px; border-radius: 9999px; vertical-align: 2px; }
+.transfer.state-empty { background: var(--purple-1); max-width: 560px; }
+.progress { color: var(--yellow-45); font-weight: 600; }
+.notes-panel { background: var(--pink-1); border-radius: var(--radius-tile); padding: 22px 24px; margin-top: 24px; }
+.notes-panel h3 { font-size: 20px; margin: 0 0 4px; }
+.notes-panel .tag { background: var(--white); color: var(--plum-5); font-size: 12px; padding: 3px 10px; border-radius: 9999px; }
+.notes-panel .notes li { border-top: 1px solid #f3b3fe; }

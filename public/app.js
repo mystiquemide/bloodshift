@@ -265,6 +265,9 @@ async function act(t, kind, btn) {
   const card = btn.closest(".transfer");
   card.querySelector(".badge").className = "badge checking";
   card.querySelector(".badge").textContent = `checking ${siteName(t.from)}`;
+  card.className = "transfer state-checking";
+  const row = btn.closest(".actions");
+  row.replaceChildren(el("p", { class: "progress", role: "status" }, `Checking ${siteName(t.from)}'s record through Zetaris, then booking the courier.`));
   try {
     const out = await postJson(`/api/transfers/${encodeURIComponent(t.id)}/${kind}`, { site: view });
     if (out.transfer.state === "refused") inboxStatus("partial", `Refused: ${out.transfer.reason}. ${out.replan?.note ?? ""}`);
@@ -317,28 +320,54 @@ function inboxStatus(kind, text) {
   p.textContent = text ?? "";
 }
 
+const INBOX_GROUPS = [
+  { title: "Waiting for you", states: ["requested", "checking"] },
+  { title: "Needs a retry", states: ["failed"] },
+  { title: "Reserved", states: ["reserved", "dispatched", "received"] },
+  { title: "Refused", states: ["refused"] },
+  { title: "Declined", states: ["declined"] },
+];
+
+function inboxActions(t) {
+  const actions = [];
+  if (t.state === "requested") {
+    const b = el("button", { type: "button" }, "Accept");
+    b.addEventListener("click", () => act(t, "accept", b));
+    const d = el("button", { type: "button", class: "secondary" }, "Decline");
+    d.addEventListener("click", () => openDecline(t, d));
+    actions.push(b, d);
+  }
+  if (t.state === "failed") {
+    const b = el("button", { type: "button" }, "Retry");
+    b.addEventListener("click", () => act(t, "retry", b));
+    actions.push(b);
+  }
+  return actions;
+}
+
 async function loadInbox() {
   try {
     const res = await fetch("/api/transfers");
     const mine = (await res.json()).transfers.filter((t) => t.to === view && !["proposed", "superseded"].includes(t.state));
-    mine.sort((a, b) => (a.state === "requested" ? -1 : 0) - (b.state === "requested" ? -1 : 0) || b.updatedAt.localeCompare(a.updatedAt));
-    const cards = mine.map((t) => {
-      const actions = [];
-      if (t.state === "requested") {
-        const b = el("button", { type: "button" }, "Accept");
-        b.addEventListener("click", () => act(t, "accept", b));
-        const d = el("button", { type: "button", class: "secondary" }, "Decline");
-        d.addEventListener("click", () => openDecline(t, d));
-        actions.push(b, d);
-      }
-      if (t.state === "failed") {
-        const b = el("button", { type: "button" }, "Retry");
-        b.addEventListener("click", () => act(t, "retry", b));
-        actions.push(b);
-      }
-      return transferCard(t, actions);
-    });
-    $("#inbox-list").replaceChildren(...(cards.length ? cards : [el("p", { class: "empty" }, "No transfer requests for this site.")]));
+    const waiting = mine.filter((t) => t.state === "requested").length;
+    $("#inbox-h").textContent = `Requests for ${siteName(view)}`;
+    $("#inbox-count").textContent = waiting ? `${waiting} waiting` : "Nothing waiting";
+    $("#inbox-count").className = "count" + (waiting ? " has" : "");
+    if (!mine.length) {
+      $("#inbox-list").replaceChildren(el("div", { class: "transfer state-empty" },
+        el("div", { class: "transfer-head" }, el("span", { class: "from" }, "Bloodshift")),
+        el("div", { class: "bubble" }, el("p", { class: "message" },
+          `No requests for ${siteName(view)} right now. When another hospital can send you a unit that would otherwise expire, the request lands here.`))));
+      return;
+    }
+    const sections = INBOX_GROUPS.map((g) => {
+      const items = mine.filter((t) => g.states.includes(t.state)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      if (!items.length) return null;
+      return el("section", { class: "inbox-group", "aria-label": g.title },
+        el("h3", {}, g.title, " ", el("span", { class: "n" }, items.length)),
+        el("div", { class: "transfers" }, ...items.map((t) => transferCard(t, inboxActions(t)))));
+    }).filter(Boolean);
+    $("#inbox-list").replaceChildren(...sections);
   } catch (err) {
     inboxStatus("error", `Couldn't load the inbox: ${err.message}`);
   }
@@ -366,7 +395,7 @@ function applyView() {
   $("#coordinator").hidden = !coordinator;
   $("#inbox").hidden = coordinator;
   if (!coordinator) {
-    $("#inbox-h").textContent = `${siteName(view)} inbox`;
+    $("#inbox-h").textContent = `Requests for ${siteName(view)}`;
     inboxStatus("", "");
     loadInbox();
     loadNotes();

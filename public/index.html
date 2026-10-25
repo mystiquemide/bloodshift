@@ -31,11 +31,17 @@
   <main>
     <p id="status" class="status" role="status" aria-live="polite">Loading live stock</p>
     <section id="inbox" class="plan" aria-labelledby="inbox-h" hidden>
-      <h2 id="inbox-h">Inbox</h2>
+      <div class="inbox-head">
+        <h2 id="inbox-h">Requests</h2>
+        <span id="inbox-count" class="count"></span>
+      </div>
       <p id="inbox-status" class="status" role="status" aria-live="polite" hidden></p>
-      <div id="inbox-list" class="transfers"></div>
-      <h3 id="notes-h" class="notes-h">Decline notes <span class="tag">Meterless H-MEM</span></h3>
-      <ul id="notes" class="notes" aria-labelledby="notes-h"></ul>
+      <div id="inbox-list"></div>
+      <section class="notes-panel" aria-labelledby="notes-h">
+        <h3 id="notes-h">What you've told the network <span class="tag">Meterless H-MEM</span></h3>
+        <p class="source">Your decline reasons, kept with when and why. Later plans read them before proposing units to you.</p>
+        <ul id="notes" class="notes"></ul>
+      </section>
     </section>
     <section id="coordinator" class="plan" aria-labelledby="plan-h">
       <div class="plan-head">
