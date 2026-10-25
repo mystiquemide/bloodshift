@@ -16,7 +16,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "simulate": "tsx scripts/simulate.ts",
-    "eval:declines": "tsx scripts/eval-declines.ts"
+    "eval:declines": "tsx scripts/eval-declines.ts",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "pg": "^8.23.1"

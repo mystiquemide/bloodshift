@@ -101,13 +101,13 @@ function json(res: ServerResponse, status: number, body: unknown) {
 
 // Clean paths for the pages. The .html paths keep working.
 const PAGES: Record<string, string> = {
+  "/": "/index.html",
   "/app": "/app.html",
   "/how-it-works": "/how-it-works.html",
   "/simulation": "/simulation.html",
 };
-// The landing page takes over / in the next step. Until then / opens the app.
+// Old app links. The app lived at / before the landing page.
 const REDIRECTS: Record<string, string> = {
-  "/": "/app",
   "/index.html": "/app",
   "/app.html": "/app",
 };
@@ -194,7 +194,7 @@ const server = createServer(async (req, res) => {
       const to = REDIRECTS[url.pathname];
       if (to) {
         // Keep ?view= so old inbox links still land on the right lab
-        res.writeHead(url.pathname === "/" ? 302 : 301, { Location: to + url.search });
+        res.writeHead(301, { Location: to + url.search });
         return res.end();
       }
       return serveStatic(PAGES[url.pathname] ?? url.pathname, res);

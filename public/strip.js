@@ -12,7 +12,7 @@ if (strip) {
       chip.textContent = "Live";
       const text = document.createTextNode(` ${units} platelet ${units === 1 ? "unit" : "units"} available across ${live.length} ${live.length === 1 ? "hospital" : "hospitals"}, read through Zetaris just now. `);
       const link = document.createElement("a");
-      link.href = "/";
+      link.href = "/app";
       link.textContent = "Open the network";
       strip.replaceChildren(chip, text, link);
       strip.hidden = false;

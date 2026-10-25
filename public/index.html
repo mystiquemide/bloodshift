@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bloodshift: platelets that reach the right hospital on time</title>
+  <meta name="description" content="Bloodshift reads every hospital's live platelet stock through Zetaris, finds units about to expire, and moves them to a hospital that will use them, after re-checking the sender's own record.">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="landing">
+  <div id="live-strip" class="live-strip" role="status" hidden></div>
+  <nav class="site-nav" aria-label="Main">
+    <div class="inner">
+      <a class="brand" href="/">Blood<span>shift</span></a>
+      <div class="links"><a href="/app">Live network</a><a href="/how-it-works">How it works</a><a href="/simulation">Simulation</a></div>
+      <div class="end"><a class="pill" href="/app">Open the app</a></div>
+    </div>
+  </nav>
+
+  <header class="l-hero">
+    <div class="l-wrap l-hero-grid">
+      <div>
+        <h1>Platelets that reach the right hospital <span class="accent">on time</span></h1>
+        <p class="l-lead">Platelets last five days. Bloodshift reads every hospital's live stock, finds the units about to go to waste, and moves them to a hospital that will use them. It checks the sender's own record before anything moves.</p>
+        <div class="l-ctas">
+          <a class="button-link" href="/app">Open the live network</a>
+          <a class="l-textlink" href="/how-it-works">How it works</a>
+        </div>
+        <p class="l-built">Built with <span>Zetaris</span> <span>NVIDIA Nemotron</span> <span>Meterless</span></p>
+      </div>
+      <figure class="l-frame">
+        <img src="/img/plan.webp" width="1120" height="760" alt="The coordinator's morning plan in Bloodshift, showing transfer requests between hospitals">
+        <figcaption class="l-tag">Synthetic data</figcaption>
+        <div id="hero-bubble" class="l-float" aria-live="polite"></div>
+      </figure>
+    </div>
+  </header>
+
+  <main>
+    <section class="l-section l-wrap" aria-labelledby="outcomes-h">
+      <h2 id="outcomes-h" class="l-h2">Every unit, one view, one decision</h2>
+      <p class="l-note">These tiles read the running demo network right now. The hospitals are synthetic.</p>
+      <div class="l-tiles">
+        <article class="l-tile blue" id="tile-live"><h3 class="l-num">Reading live stock</h3></article>
+        <article class="l-tile green" id="tile-reserved"><h3 class="l-num">Reading transfers</h3></article>
+        <article class="l-tile yellow" id="tile-expiring"><h3 class="l-num">Reading live stock</h3></article>
+        <article class="l-tile coral" id="tile-refused"><h3 class="l-num">Reading transfers</h3></article>
+        <article class="l-tile pink" id="tile-declined"><h3 class="l-num">Reading decline notes</h3></article>
+        <article class="l-tile purple" id="tile-sim"><h3 class="l-num">Reading the simulation</h3></article>
+      </div>
+    </section>
+
+    <section class="l-section l-wrap" aria-labelledby="ba-h">
+      <h2 id="ba-h" class="l-h2">From phone calls to one click</h2>
+      <div class="l-ba">
+        <div class="l-before">
+          <h3>Today</h3>
+          <ul><li>Stock is posted by hand, if at all</li><li>Someone phones around at 7am</li><li>Units are checked from memory</li><li>Waste shows up at the end of the month</li></ul>
+        </div>
+        <div class="l-after">
+          <h3>With Bloodshift</h3>
+          <ul><li>Stock is read live, in place</li><li>The plan takes seconds</li><li>The source is re-checked before any move</li><li>Every move has a proof trail</li></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="l-band purple" aria-labelledby="steps-h">
+      <div class="l-wrap">
+        <h2 id="steps-h" class="l-h2">No live row, no move</h2>
+        <div class="l-steps" role="tablist" aria-label="How a move happens"></div>
+        <div id="step-panel" class="l-step-panel" role="tabpanel"></div>
+      </div>
+    </section>
+
+    <section class="l-section l-wrap l-why" aria-labelledby="why-h">
+      <figure class="l-frame narrow">
+        <img src="/img/proof.webp" width="308" height="1122" alt="A transfer's proof in Bloodshift: the SQL read at planning, the re-check at accept, the confirmation after the writes, and the history" loading="lazy">
+        <figcaption class="l-tag">Synthetic data</figcaption>
+      </figure>
+      <div>
+        <h2 id="why-h" class="l-h2">Every wasted unit was a donation</h2>
+        <p>Moving platelets between hospitals before they expire already works where it's been tried. Bloodshift does it from each hospital's own live record, with proof for every move.</p>
+        <div class="l-facts">
+          <a class="l-fact" href="https://www.blood.gov.au/sites/default/files/documents/2024-09/D15%20109791%20%20Better%20Practice%20Case%20Study%20%20BloodMove%20Platelets%20%20a%20successful%20system%20to%20significantly%20reduce%20platelet%20wastage_RT.pdf" rel="noopener">
+            <strong>17% to 7.8%</strong><span>Platelet wastage in Adelaide's public hospitals after BloodMove started sharing stock between sites. National Blood Authority case study.</span></a>
+          <a class="l-fact" href="https://ideas.repec.org/a/inm/oropre/v71y2023i5p1756-1776.html" rel="noopener">
+            <strong>About 20%</strong><span>Fewer platelet outdates at Emory's hospitals after they started moving units between sites. Zhang et al., Operations Research, 2023.</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="l-close" aria-labelledby="close-h">
+      <h2 id="close-h">Move the unit before it expires</h2>
+      <a class="button-link" href="/app">Open the live network</a>
+    </section>
+  </main>
+
+  <footer class="l-footer">
+    <div class="l-wrap l-footer-grid">
+      <div><span class="brand">Blood<span>shift</span></span><p>Synthetic data, no real patients. Built with Zetaris, NVIDIA Nemotron and Meterless.</p></div>
+      <nav aria-label="Footer"><a href="/app">Live network</a><a href="/how-it-works">How it works</a><a href="/simulation">Simulation</a><a href="https://github.com/mystiquemide/open-agent">GitHub</a></nav>
+    </div>
+  </footer>
+  <script src="/landing.js" type="module"></script>
+  <script src="/strip.js" type="module"></script>
+</body>
+</html>

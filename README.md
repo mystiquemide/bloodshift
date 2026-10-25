@@ -23,7 +23,7 @@ cp .env.example .env        # Zetaris login, two site database passwords, option
 npm run sources:up          # Site A, Site B and the courier, on the Zetaris Docker network
 npm run seed                # synthetic stock and 30 days of usage, from a fixed seed
 npm run register            # registers all four sources in Zetaris
-npm start                   # http://localhost:4000
+npm start                   # http://localhost:4000, the app is at /app
 ```
 
 Use "View as" to switch between the network coordinator and each hospital's lab.
@@ -58,6 +58,7 @@ It asks for a Zetaris admin password, an optional NVIDIA key and the Zetaris reg
 | `npm run typecheck` | TypeScript checks |
 | `npm run simulate` | 30-day simulation of the rule against no sharing, over 20 seeds by default. `npm run simulate -- 100` for more |
 | `npm run eval:declines` | 10 decline scenarios against the live Nemotron model |
+| `npm run screenshots` | Recaptures the landing page images from the running app. Needs Playwright and one reserved transfer |
 
 ## Results so far
 
