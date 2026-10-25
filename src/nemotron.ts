@@ -125,12 +125,34 @@ export class NemotronDecider implements Decider {
   constructor(
     // thinking: the model's reasoning mode. Off by default: the choice is bounded and validated,
     // and with it on a 9-unit plan took about 6 times longer and could run out of tokens before answering.
-    private readonly opts: { apiKey: string; model: string; thinking?: boolean; baseUrl?: string; timeoutMs?: number; fetchImpl?: typeof fetch },
+    private readonly opts: { apiKey: string; model: string; thinking?: boolean; baseUrl?: string; timeoutMs?: number; retryDelayMs?: number; fetchImpl?: typeof fetch },
   ) {}
 
   async decide(requests: DecisionRequest[]): Promise<DecisionOutcome> {
     if (requests.length === 0) return { decisions: new Map(), rejected: [] };
-    const res = await (this.opts.fetchImpl ?? fetch)(`${this.opts.baseUrl ?? "https://integrate.api.nvidia.com/v1"}/chat/completions`, {
+    // The NIM endpoint occasionally answers 500 or drops a call and succeeds right after.
+    // One retry after a short pause covers that. Other errors fall back straight away.
+    let res: Response;
+    try {
+      res = await this.call(requests);
+      if (res.status >= 500 || res.status === 429) throw new Error(`Nemotron returned HTTP ${res.status}`);
+    } catch (first) {
+      await new Promise((r) => setTimeout(r, this.opts.retryDelayMs ?? 2000));
+      try {
+        res = await this.call(requests);
+      } catch {
+        throw first;
+      }
+    }
+    if (!res.ok) throw new Error(`Nemotron returned HTTP ${res.status}`);
+    const body = (await res.json()) as { choices?: { finish_reason?: string; message?: { content?: string } }[] };
+    const content = body.choices?.[0]?.message?.content;
+    if (!content) throw new Error(`Nemotron returned no content (finish reason ${body.choices?.[0]?.finish_reason ?? "unknown"})`);
+    return validateDecisions(extractJson(content), requests);
+  }
+
+  private call(requests: DecisionRequest[]): Promise<Response> {
+    return (this.opts.fetchImpl ?? fetch)(`${this.opts.baseUrl ?? "https://integrate.api.nvidia.com/v1"}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${this.opts.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -145,10 +167,5 @@ export class NemotronDecider implements Decider {
       }),
       signal: AbortSignal.timeout(this.opts.timeoutMs ?? 90_000),
     });
-    if (!res.ok) throw new Error(`Nemotron returned HTTP ${res.status}`);
-    const body = (await res.json()) as { choices?: { finish_reason?: string; message?: { content?: string } }[] };
-    const content = body.choices?.[0]?.message?.content;
-    if (!content) throw new Error(`Nemotron returned no content (finish reason ${body.choices?.[0]?.finish_reason ?? "unknown"})`);
-    return validateDecisions(extractJson(content), requests);
   }
 }

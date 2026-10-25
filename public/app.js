@@ -18,66 +18,73 @@ function time(iso) {
   return new Date(iso).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+const SITE_TINT = { SITE_A: "tint-blue", SITE_B: "tint-green", SITE_C: "tint-pink" };
+const STATUS_LABEL = { available: "Available", reserved: "Reserved", used: "Used", expired: "Expired", open: "Open", booked: "Booked" };
+
 function siteCard(s) {
-  const available = s.units.filter((u) => u.status === "available");
-  const soon = available.filter((u) => hoursLeft(u.expiresAt) <= 24);
-  const card = el("article", { class: "site" + (s.status.ok ? "" : " down") },
-    el("h2", {}, s.site.name, " ", el("span", { class: "tag" }, s.site.id)),
-    el("p", { class: "source" }, `Source: ${s.site.system}`));
+  // A unit past its expiry can still say "available" at the source. It isn't usable, so it isn't counted.
+  const usable = s.units.filter((u) => u.status === "available" && hoursLeft(u.expiresAt) > 0);
+  const soon = usable.filter((u) => hoursLeft(u.expiresAt) <= 24);
+  const lapsed = s.units.filter((u) => u.status === "available" && hoursLeft(u.expiresAt) <= 0).length;
+  const card = el("article", { class: `site ${s.status.ok ? SITE_TINT[s.site.id] ?? "" : "down"}` },
+    el("h2", {}, s.site.name),
+    el("p", { class: "source" }, s.site.system));
 
   if (!s.status.ok) {
-    card.append(el("p", { class: "error" }, "Unavailable. ", s.status.error));
+    card.append(el("p", { class: "error" }, "Can't read this hospital right now. ", s.status.error));
     return card;
   }
   card.append(
-    el("p", { class: "source" }, `Read via Zetaris at ${time(s.status.queriedAt)}`),
+    el("p", { class: "source" }, `Read through Zetaris at ${time(s.status.queriedAt)}`),
     el("div", { class: "stats" },
-      el("div", {}, el("strong", {}, available.length), " available"),
-      el("div", { class: soon.length ? "warn" : "" }, el("strong", {}, soon.length), " expire within 24h")),
+      el("div", {}, el("strong", {}, usable.length), el("span", {}, "available")),
+      el("div", { class: soon.length ? "warn" : "" }, el("strong", {}, soon.length), el("span", {}, "expire within 24h")),
+      lapsed ? el("div", { class: "lapsed" }, el("strong", {}, lapsed), el("span", {}, "past expiry, still listed")) : ""),
   );
   if (s.units.length === 0) {
-    card.append(el("p", { class: "empty" }, "No platelet units at this site."));
+    card.append(el("p", { class: "empty" }, "No platelet units at this hospital."));
     return card;
   }
   const rows = s.units.map((u) => {
     const h = hoursLeft(u.expiresAt);
+    const lapsedRow = u.status === "available" && h <= 0;
     return el("tr", { title: u.source },
-      el("td", {}, u.unitId),
-      el("td", {}, `${u.abo}${u.rh}`),
-      el("td", { class: u.status === "available" && h <= 24 ? "warn" : "" }, h <= 0 ? "expired" : `${h}h`),
-      el("td", {}, u.irradiated ? "Yes" : "No"),
-      el("td", {}, el("span", { class: `badge ${u.status}` }, u.status), u.reservedFor ? ` for ${u.reservedFor}` : ""));
+      el("td", { class: "mono" }, u.unitId),
+      el("td", {}, el("span", { class: "group" }, `${u.abo}${u.rh}`), u.irradiated ? el("span", { class: "irr", title: "Irradiated" }, " irr") : ""),
+      el("td", { class: lapsedRow ? "lapsed" : u.status === "available" && h <= 24 ? "warn" : "" }, h <= 0 ? "expired" : `${h}h`),
+      el("td", {}, el("span", { class: `badge ${lapsedRow ? "expired" : u.status}` }, lapsedRow ? "Past expiry" : STATUS_LABEL[u.status] ?? u.status), u.reservedFor ? el("span", { class: "for" }, `for ${siteName(u.reservedFor)}`) : ""));
   });
-  card.append(el("div", { class: "table-wrap" }, el("table", {},
-    el("thead", {}, el("tr", {}, el("th", {}, "Unit"), el("th", {}, "Group"), el("th", {}, "Expires in"), el("th", {}, "Irradiated"), el("th", {}, "Status"))),
+  card.append(el("div", { class: "table-wrap inner" }, el("table", {},
+    el("thead", {}, el("tr", {}, el("th", {}, "Unit"), el("th", {}, "Group"), el("th", {}, "Expires in"), el("th", {}, "Status"))),
     el("tbody", {}, ...rows))));
   return card;
 }
 
 function render(data) {
   const down = data.sites.filter((s) => !s.status.ok).map((s) => s.site.name);
-  if (!data.courier.status.ok) down.push("Courier");
+  if (!data.courier.status.ok) down.push("the courier");
+  const live = data.sites.filter((s) => s.status.ok).length + (data.courier.status.ok ? 1 : 0);
   const status = $("#status");
   status.className = "status " + data.state;
   status.textContent =
-    data.state === "loaded" ? "All sources live." :
-    data.state === "partial" ? `Some sources unavailable: ${down.join(", ")}. Other sites are live.` :
-    "No source could be read. Check that Zetaris and the sources are running.";
+    data.state === "loaded" ? `All ${live} sources live: 3 hospital systems and the courier, read through Zetaris.` :
+    data.state === "partial" ? `Can't read ${down.join(", ")} right now. The other sources are live.` :
+    "No source could be read. Zetaris or the hospital systems aren't answering.";
 
   $("#sites").replaceChildren(...data.sites.map(siteCard));
 
   const cs = data.courier.status;
-  $("#courier-status").textContent = cs.ok ? `Read via Zetaris at ${time(cs.queriedAt)}` : `Unavailable. ${cs.error}`;
+  $("#courier-status").textContent = cs.ok ? `Read through Zetaris at ${time(cs.queriedAt)}` : `Can't read the courier right now. ${cs.error}`;
   $("#slots tbody").replaceChildren(...data.courier.slots.map((s) => el("tr", {},
-    el("td", {}, s.slotId), el("td", {}, `${s.fromSite} to ${s.toSite}`), el("td", {}, time(s.departsAt)),
-    el("td", {}, el("span", { class: `badge ${s.status}` }, s.status)), el("td", {}, s.bookingId ?? ""))));
+    el("td", { class: "mono" }, s.slotId), el("td", {}, `${siteName(s.fromSite)} to ${siteName(s.toSite)}`), el("td", {}, time(s.departsAt)),
+    el("td", {}, el("span", { class: `badge ${s.status}` }, STATUS_LABEL[s.status] ?? s.status)), el("td", { class: "mono" }, s.bookingId ?? ""))));
 }
 
 async function load() {
   const btn = $("#refresh");
   btn.disabled = true;
   $("#status").className = "status loading";
-  $("#status").textContent = "Loading live stock";
+  $("#status").textContent = "Reading live stock through Zetaris";
   try {
     const res = await fetch("/api/stock");
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
@@ -114,25 +121,41 @@ function snapshotLine(label, c) {
   return el("p", { class: "source" }, `${label} via Zetaris at ${time(c.queriedAt)}: ${unit}, ${slot}.`);
 }
 
+const STATE_LABEL = {
+  proposed: "Proposed", requested: "Requested", checking: "Checking source", reserved: "Reserved",
+  refused: "Refused", declined: "Declined", failed: "Failed", superseded: "Replaced", dispatched: "Dispatched", received: "Received", cancelled: "Cancelled",
+};
+
+function ago(iso) {
+  const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : time(iso);
+}
+
+// A transfer reads as a message from the sending hospital to the receiving lab
 function transferCard(t, actions = []) {
   const e = t.evidence;
-  const stateText = t.state === "checking" ? "checking source" : t.state;
-  return el("article", { class: "transfer", "data-id": t.id },
+  const stateText = t.state === "checking" ? `checking ${siteName(t.from)}` : STATE_LABEL[t.state] ?? t.state;
+  return el("article", { class: `transfer state-${t.state}`, "data-id": t.id },
     el("div", { class: "transfer-head" },
-      el("strong", {}, t.unitId), " ",
-      el("span", { class: "tag" }, `${t.abo}${t.rh}${t.irradiated ? " irradiated" : ""}`), " ",
+      el("span", { class: "from" }, `${siteName(t.from)} to ${siteName(t.to)}`),
       el("span", { class: `badge ${t.state}` }, stateText)),
-    el("p", {}, `${siteName(t.from)} to ${siteName(t.to)}, courier slot ${t.slotId}, arrives ${time(t.arrivesAt)}`),
+    el("div", { class: "bubble" },
+      el("p", { class: "message" }, t.message),
+      el("p", { class: "by" }, t.messageBy === "nemotron" ? `Written by Nemotron · ${ago(t.updatedAt)}` : `Standard template · ${ago(t.updatedAt)}`)),
+    el("div", { class: "facts" },
+      el("strong", { class: "mono" }, t.unitId),
+      el("span", { class: "group" }, `${t.abo}${t.rh}`),
+      t.irradiated ? el("span", { class: "chip" }, "Irradiated") : "",
+      el("span", { class: "chip" }, `Slot ${t.slotId}`),
+      el("span", { class: "chip" }, `Arrives ${time(t.arrivesAt)}`)),
     t.state === "reserved" ? el("p", { class: "ok" }, `Reserved at ${siteName(t.from)}. Courier booking ${t.bookingId}.`) : "",
     t.reason ? el("p", { class: "reason" }, t.state === "refused" ? `Refused: ${t.reason}` : t.state === "declined" ? `Declined: ${t.reason}` : t.reason) : "",
     t.replacementNote ? el("p", { class: "replacement" }, t.replacementNote) : "",
     t.replaces ? el("p", { class: "source" }, `Replaces ${t.replaces.split("-").slice(-3).join("-")}, which was declined or refused.`) : "",
-    el("p", { class: "message" }, t.message),
-    el("p", { class: "source" }, `Planned from: ${e.source}. Status ${e.status}, expires ${time(e.expiresAt)}, read ${time(e.queriedAt)}.`),
+    el("p", { class: "source" }, `Planned from ${e.source}. It was ${e.status} and expires ${time(e.expiresAt)}.`),
     t.state === "reserved" ? snapshotLine("Confirmed", t.confirmation) : snapshotLine("Checked", t.check),
-    el("p", { class: "source" }, t.messageBy === "nemotron" ? "Request written by Nemotron" : "Request from the standard template"),
-    proofDrawer(t),
-    actions.length ? el("div", { class: "actions" }, ...actions) : "");
+    actions.length ? el("div", { class: "actions" }, ...actions) : "",
+    proofDrawer(t));
 }
 
 function sqlBlock(label, sql, when, detail) {
@@ -174,7 +197,9 @@ function proofDrawer(t) {
 function renderTransfers(transfers) {
   const shown = transfers.filter((t) => t.state !== "superseded");
   $("#transfers").replaceChildren(...(shown.length ? shown.map(transferCard) : [el("p", { class: "empty" }, "No transfers yet. Run the morning plan.")]));
-  $("#send").hidden = !transfers.some((t) => t.state === "proposed");
+  const proposed = transfers.filter((t) => t.state === "proposed").length;
+  $("#send").hidden = proposed === 0;
+  $("#send").textContent = `Send ${proposed} ${proposed === 1 ? "request" : "requests"}`;
 }
 
 function renderSummary(run) {
@@ -182,10 +207,10 @@ function renderSummary(run) {
   box.hidden = false;
   const reduction = run.outdatesBefore ? Math.round((1 - run.outdatesAfter / run.outdatesBefore) * 100) : 0;
   box.replaceChildren(
-    el("div", {}, el("strong", {}, run.outdatesBefore), " projected outdates without the plan"),
-    el("div", {}, el("strong", {}, run.outdatesAfter), " with the plan", run.outdatesBefore ? ` (${reduction}% fewer)` : ""),
-    el("div", {}, el("strong", {}, run.transfers.length), " transfers proposed"),
-    el("p", { class: "source" }, "Projection from live stock and 30 days of usage history. Not a measured result."));
+    el("div", { class: "stat" }, el("strong", {}, run.outdatesBefore), el("span", {}, "projected outdates without the plan")),
+    el("div", { class: "stat good" }, el("strong", {}, run.outdatesAfter), el("span", {}, run.outdatesBefore ? `with the plan, ${reduction}% fewer` : "with the plan")),
+    el("div", { class: "stat" }, el("strong", {}, run.transfers.length), el("span", {}, run.transfers.length === 1 ? "transfer proposed" : "transfers proposed")),
+    el("p", { class: "source" }, "Projected from live stock and 30 days of use at each hospital. Not a measured result."));
 }
 
 async function loadTransfers() {
@@ -200,7 +225,8 @@ async function loadTransfers() {
 $("#run-plan").addEventListener("click", async () => {
   const btn = $("#run-plan");
   btn.disabled = true;
-  planStatus("loading", "Planning. Reading live stock and usage through Zetaris.");
+  btn.textContent = "Planning";
+  planStatus("loading", "Reading live stock through Zetaris, then asking Nemotron to write the requests. This can take up to 20 seconds.");
   try {
     const run = await post("/api/plan");
     renderSummary(run);
@@ -213,6 +239,7 @@ $("#run-plan").addEventListener("click", async () => {
     planStatus("error", err.message);
   } finally {
     btn.disabled = false;
+    btn.textContent = "Run morning plan";
   }
 });
 

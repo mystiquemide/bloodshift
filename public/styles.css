@@ -152,3 +152,100 @@ main { padding: 8px var(--gutter) 48px; }
 .site-nav select { background: var(--white); color: var(--ink-0); border: 0; border-radius: 9999px; padding: 9px 14px; font-weight: 600; }
 .site-nav button.secondary { background: transparent; color: var(--white); border-color: var(--blush-1); }
 @media (max-width: 767px) { .page-head h1 { font-size: 30px; } }
+
+/* Step 2: coordinator view */
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; }
+.status { border-radius: 9999px; padding: 12px 22px; border: 0; font-weight: 600; background: var(--grey-1); color: var(--ink-0); }
+.status.loaded { background: var(--green-1); color: var(--green-45); }
+.status.partial { background: var(--yellow-1); color: var(--yellow-45); }
+.status.error { background: var(--coral-1); color: var(--coral-45); }
+.status.loading { background: var(--grey-1); color: var(--grey-text); }
+
+.plan { border: 1px solid var(--grey-2); border-radius: var(--radius-tile); padding: 28px; margin: 20px 0; background: var(--white); }
+.plan h2 { font-size: 28px; line-height: 1.2; font-weight: 600; margin: 0; }
+.plan-head { margin-bottom: 16px; }
+.plan-summary { gap: 12px; margin: 16px 0 20px; }
+.plan-summary .stat { background: var(--grey-1); border-radius: var(--radius-bubble); padding: 14px 18px; display: flex; flex-direction: column; min-width: 150px; }
+.plan-summary .stat.good { background: var(--green-1); color: var(--green-45); }
+.plan-summary .stat strong { font-size: 36px; line-height: 1.1; font-weight: 700; }
+.plan-summary .stat span { font-size: 14px; }
+
+.transfers { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.transfer { border: 0; border-radius: var(--radius-tile); padding: 18px; background: var(--grey-1); display: flex; flex-direction: column; gap: 10px; }
+.transfer p { margin: 0; }
+.transfer.state-reserved { background: var(--green-1); }
+.transfer.state-refused, .transfer.state-failed { background: var(--coral-1); }
+.transfer.state-requested, .transfer.state-checking { background: var(--blue-1); }
+.transfer.state-declined { background: var(--pink-1); }
+.transfer-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.transfer-head .from { font-weight: 600; }
+.bubble { background: var(--white); border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble) 4px; padding: 12px 16px; }
+.transfer .bubble .message { background: none; padding: 0; font-size: 16px; line-height: 1.45; }
+.bubble .by { font-size: 13px; color: var(--grey-text); margin-top: 6px; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.facts strong { margin-right: 4px; }
+.chip, .group { display: inline-block; font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: var(--white); color: var(--ink-0); }
+.group { background: var(--plum-5); color: var(--white); }
+.transfer .source { font-size: 13px; }
+.transfer .actions button { padding: 9px 22px; }
+
+.badge { font-size: 13px; font-weight: 600; padding: 3px 12px; border-radius: 9999px; background: var(--white); color: var(--ink-0); }
+.badge.available, .badge.open, .badge.reserved { background: var(--white); color: var(--green-45); }
+.badge.booked, .badge.requested { background: var(--white); color: var(--blue-45); }
+.badge.proposed { background: var(--white); color: var(--plum-5); }
+.badge.checking { background: var(--yellow-1); color: var(--yellow-45); }
+.badge.refused, .badge.failed { background: var(--white); color: var(--coral-45); }
+.badge.used, .badge.expired, .badge.declined, .badge.superseded { background: var(--white); color: var(--grey-text); }
+.ok { color: var(--green-45); }
+.reason { color: var(--coral-45); }
+.replacement { color: var(--blue-45); }
+
+.sites { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin: 20px 0; }
+.site { border: 0; border-radius: var(--radius-tile); padding: 24px; background: var(--grey-1); }
+.site.tint-blue { background: var(--blue-1); }
+.site.tint-green { background: var(--green-1); }
+.site.tint-pink { background: var(--pink-1); }
+.site.down { background: var(--coral-1); }
+.site h2 { font-size: 24px; margin: 0 0 4px; font-weight: 600; }
+.site .source { color: var(--ink-0); opacity: 0.8; }
+.site .stats { gap: 24px; margin: 16px 0; }
+.site .stats div { display: flex; flex-direction: column; }
+.site .stats strong { font-size: 40px; line-height: 1.05; font-weight: 700; }
+.site .stats span { font-size: 14px; }
+.site .stats .warn { color: var(--yellow-45); }
+.table-wrap.inner { background: var(--white); border-radius: var(--radius-bubble); max-height: 320px; }
+.table-wrap.inner th { background: var(--white); }
+th, td { padding: 8px 12px; }
+td.warn { color: var(--yellow-45); font-weight: 600; }
+
+.courier { border: 0; border-radius: var(--radius-tile); padding: 24px; background: var(--blue-1); margin-bottom: 20px; }
+.courier h2 { font-size: 24px; margin: 0 0 4px; }
+.courier .table-wrap { background: var(--white); border-radius: var(--radius-bubble); margin-top: 12px; }
+.courier .table-wrap th { background: var(--white); }
+.tag.mock { background: var(--white); color: var(--yellow-45); font-size: 13px; padding: 3px 10px; border-radius: 9999px; }
+
+.proof { border-top: 0; padding-top: 0; }
+.proof summary { color: var(--plum-5); font-size: 14px; }
+.proof-body { background: var(--ink-0); color: #f2e9f3; border-radius: var(--radius-bubble); padding: 14px 16px; margin-top: 8px; }
+.proof-body .source { color: #d9cbdc; }
+.proof-body pre { background: #2b1d2e; }
+.proof-body strong { color: var(--white); }
+
+/* Tighter nav on phones: links and actions each take one row */
+@media (max-width: 767px) {
+  .site-nav .inner { padding-top: 12px; padding-bottom: 12px; }
+  .site-nav .brand { font-size: 22px; }
+  .site-nav .synthetic { width: 100%; order: 3; font-size: 12px; }
+  .site-nav .end { gap: 8px; }
+  .site-nav .switcher { font-size: 0; }
+  .site-nav .switcher select { font-size: 15px; }
+  .site-nav button.secondary { padding: 8px 16px; }
+  .plan { padding: 20px; }
+  .transfers { grid-template-columns: 1fr; }
+  .plan-summary .stat { min-width: 0; flex: 1 1 40%; }
+}
+.site .stats .lapsed, td.lapsed { color: var(--grey-text); }
+.irr { font-size: 12px; font-weight: 600; color: var(--plum-5); }
+.table-wrap.inner td:last-child { white-space: normal; }
+.table-wrap.inner .for { display: block; font-size: 12px; color: var(--grey-text); margin-top: 2px; }
+.table-wrap.inner th, .table-wrap.inner td { padding: 8px 9px; }

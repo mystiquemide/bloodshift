@@ -5,7 +5,7 @@ if (strip) {
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
     .then((stock) => {
       const live = stock.sites.filter((s) => s.status.ok);
-      const units = live.reduce((n, s) => n + s.units.filter((u) => u.status === "available").length, 0);
+      const units = live.reduce((n, s) => n + s.units.filter((u) => u.status === "available" && Date.parse(u.expiresAt) > Date.now()).length, 0);
       if (!live.length) return;
       const chip = document.createElement("span");
       chip.className = "chip";
