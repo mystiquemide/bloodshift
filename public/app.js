@@ -459,6 +459,11 @@ function applyView() {
   if (view === "COORDINATOR") url.searchParams.delete("view"); else url.searchParams.set("view", view);
   history.replaceState(null, "", url);
   const coordinator = view === "COORDINATOR";
+  $("#page-h1").textContent = coordinator ? "Network platelet stock" : `${siteName(view)} lab`;
+  $("#page-sub").textContent = coordinator
+    ? "Read live from each hospital's own system through Zetaris"
+    : "Requests from other hospitals, and live stock across the network";
+  document.title = coordinator ? "Bloodshift: live network" : `${siteName(view)} lab: Bloodshift`;
   $("#coordinator").hidden = !coordinator;
   $("#inbox").hidden = coordinator;
   if (!coordinator) {

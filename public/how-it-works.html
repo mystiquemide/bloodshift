@@ -7,12 +7,16 @@
   <meta name="description" content="How Bloodshift reads every hospital's live platelet stock through Zetaris, plans transfers, and refuses any move the sending hospital's own record no longer supports.">
   <meta property="og:title" content="How Bloodshift works">
   <meta property="og:description" content="How Bloodshift reads every hospital's live platelet stock through Zetaris, plans transfers, and refuses any move the sending hospital's own record no longer supports.">
+  <meta property="og:image" content="https://bloodshift.midelabs.xyz/img/og.png">
+  <meta property="og:image:alt" content="Bloodshift: platelets that reach the right hospital on time">
+  <meta property="og:url" content="https://bloodshift.midelabs.xyz/how-it-works">
   <meta property="og:type" content="website">
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="landing">
+  <a class="skip-link" href="#main">Skip to content</a>
   <div id="live-strip" class="live-strip" role="status" hidden></div>
   <nav class="site-nav" aria-label="Main">
     <div class="inner">
@@ -35,7 +39,7 @@
       </figure>
     </div>
   </header>
-  <main>
+  <main id="main">
     <section class="l-section l-wrap" aria-labelledby="loop-h">
       <h2 id="loop-h" class="l-h2">The loop</h2>
       <ol class="l-list">
@@ -104,6 +108,12 @@
       <div class="l-ctas center"><a class="button-link" href="/app">Open the live network</a><a class="l-textlink" href="/simulation">See the simulation</a></div>
     </section>
   </main>
+  <footer class="l-footer">
+    <div class="l-wrap l-footer-grid">
+      <div><span class="brand">Blood<span>shift</span></span><p>Synthetic data, no real patients. Built with Zetaris, NVIDIA Nemotron and Meterless.</p></div>
+      <nav aria-label="Footer"><a href="/app">Live network</a><a href="/how-it-works">How it works</a><a href="/simulation">Simulation</a><a href="https://github.com/mystiquemide/bloodshift">GitHub</a></nav>
+    </div>
+  </footer>
   <script src="/how-it-works.js" type="module"></script>
   <script src="/strip.js" type="module"></script>
 </body>

@@ -7,12 +7,16 @@
   <meta name="description" content="The coordinator's network view and each hospital lab's inbox: live platelet stock read through Zetaris, the morning plan, and transfers that re-check the source before anything moves.">
   <meta property="og:title" content="Bloodshift: live network">
   <meta property="og:description" content="The coordinator's network view and each hospital lab's inbox: live platelet stock read through Zetaris, the morning plan, and transfers that re-check the source before anything moves.">
+  <meta property="og:image" content="https://bloodshift.midelabs.xyz/img/og.png">
+  <meta property="og:image:alt" content="Bloodshift: platelets that reach the right hospital on time">
+  <meta property="og:url" content="https://bloodshift.midelabs.xyz/app">
   <meta property="og:type" content="website">
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <div id="live-strip" class="live-strip" role="status" hidden></div>
   <nav class="site-nav" aria-label="Main">
     <div class="inner">
@@ -31,10 +35,10 @@
     </div>
   </nav>
   <header class="page-head">
-    <h1>Network platelet stock</h1>
-    <p class="sub">Read live from each hospital's own system through Zetaris</p>
+    <h1 id="page-h1">Network platelet stock</h1>
+    <p id="page-sub" class="sub">Read live from each hospital's own system through Zetaris</p>
   </header>
-  <main>
+  <main id="main">
     <p id="status" class="status" role="status" aria-live="polite">Loading live stock</p>
     <section id="inbox" class="plan" aria-labelledby="inbox-h" hidden>
       <div class="inbox-head">
@@ -68,6 +72,12 @@
       <div class="table-wrap"><table id="slots"><thead><tr><th>Slot</th><th>Route</th><th>Departs</th><th>Status</th><th>Booking</th></tr></thead><tbody></tbody></table></div>
     </section>
   </main>
+  <footer class="l-footer">
+    <div class="l-wrap l-footer-grid">
+      <div><span class="brand">Blood<span>shift</span></span><p>Synthetic data, no real patients. Built with Zetaris, NVIDIA Nemotron and Meterless.</p></div>
+      <nav aria-label="Footer"><a href="/app">Live network</a><a href="/how-it-works">How it works</a><a href="/simulation">Simulation</a><a href="https://github.com/mystiquemide/bloodshift">GitHub</a></nav>
+    </div>
+  </footer>
   <script src="/strip.js" type="module"></script>
   <script src="/app.js" type="module"></script>
 </body>

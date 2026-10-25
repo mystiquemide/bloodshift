@@ -7,12 +7,16 @@
   <meta name="description" content="A 30-day simulation of Bloodshift's transfer rule against no sharing, on synthetic demand: outdated platelets by blood group.">
   <meta property="og:title" content="Bloodshift simulation">
   <meta property="og:description" content="A 30-day simulation of Bloodshift's transfer rule against no sharing, on synthetic demand: outdated platelets by blood group.">
+  <meta property="og:image" content="https://bloodshift.midelabs.xyz/img/og.png">
+  <meta property="og:image:alt" content="Bloodshift: platelets that reach the right hospital on time">
+  <meta property="og:url" content="https://bloodshift.midelabs.xyz/simulation">
   <meta property="og:type" content="website">
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="landing">
+  <a class="skip-link" href="#main">Skip to content</a>
   <div id="live-strip" class="live-strip" role="status" hidden></div>
   <nav class="site-nav" aria-label="Main">
     <div class="inner">
@@ -33,7 +37,7 @@
       <p id="status" class="l-small" role="status" aria-live="polite"></p>
     </div>
   </header>
-  <main>
+  <main id="main">
     <section class="l-section l-wrap" aria-labelledby="results-h">
       <h2 id="results-h" class="l-h2">By blood group</h2>
       <p class="l-note">Mean outdated units per 30-day run. <span class="l-key before"></span>No sharing <span class="l-key after"></span>With the rule</p>
@@ -63,6 +67,12 @@
       <a class="button-link" href="/app">Open the live network</a>
     </section>
   </main>
+  <footer class="l-footer">
+    <div class="l-wrap l-footer-grid">
+      <div><span class="brand">Blood<span>shift</span></span><p>Synthetic data, no real patients. Built with Zetaris, NVIDIA Nemotron and Meterless.</p></div>
+      <nav aria-label="Footer"><a href="/app">Live network</a><a href="/how-it-works">How it works</a><a href="/simulation">Simulation</a><a href="https://github.com/mystiquemide/bloodshift">GitHub</a></nav>
+    </div>
+  </footer>
   <script src="/simulation.js" type="module"></script>
   <script src="/strip.js" type="module"></script>
 </body>
