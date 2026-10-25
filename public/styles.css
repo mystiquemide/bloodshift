@@ -263,3 +263,4 @@ td.warn { color: var(--yellow-45); font-weight: 600; }
 .notes-panel h3 { font-size: 20px; margin: 0 0 4px; }
 .notes-panel .tag { background: var(--white); color: var(--plum-5); font-size: 12px; padding: 3px 10px; border-radius: 9999px; }
 .notes-panel .notes li { border-top: 1px solid #f3b3fe; }
+.inbox-link { display: inline-block; margin: 2px 0 8px; font-weight: 600; color: var(--plum-5); text-underline-offset: 3px; }

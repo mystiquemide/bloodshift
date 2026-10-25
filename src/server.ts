@@ -99,8 +99,21 @@ function json(res: ServerResponse, status: number, body: unknown) {
   res.end(JSON.stringify(body));
 }
 
+// Clean paths for the pages. The .html paths keep working.
+const PAGES: Record<string, string> = {
+  "/app": "/app.html",
+  "/how-it-works": "/how-it-works.html",
+  "/simulation": "/simulation.html",
+};
+// The landing page takes over / in the next step. Until then / opens the app.
+const REDIRECTS: Record<string, string> = {
+  "/": "/app",
+  "/index.html": "/app",
+  "/app.html": "/app",
+};
+
 async function serveStatic(path: string, res: ServerResponse) {
-  const rel = normalize(path === "/" ? "/index.html" : path).replace(/^(\.\.[/\\])+/, "");
+  const rel = normalize(path).replace(/^(\.\.[/\\])+/, "");
   const file = join(PUBLIC_DIR, rel);
   if (!file.startsWith(PUBLIC_DIR)) return notFound(res);
   try {
@@ -177,7 +190,15 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { sent: await sendProposals(store, "coordinator") });
     }
     if (req.method === "GET" && url.pathname.startsWith("/api/")) return json(res, 404, { error: "not found" });
-    if (req.method === "GET") return serveStatic(url.pathname, res);
+    if (req.method === "GET") {
+      const to = REDIRECTS[url.pathname];
+      if (to) {
+        // Keep ?view= so old inbox links still land on the right lab
+        res.writeHead(url.pathname === "/" ? 302 : 301, { Location: to + url.search });
+        return res.end();
+      }
+      return serveStatic(PAGES[url.pathname] ?? url.pathname, res);
+    }
     json(res, 405, { error: "method not allowed" });
   } catch (err) {
     if (err instanceof AcceptError) return json(res, err.status, { error: err.message });

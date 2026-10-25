@@ -28,7 +28,8 @@ function siteCard(s) {
   const lapsed = s.units.filter((u) => u.status === "available" && hoursLeft(u.expiresAt) <= 0).length;
   const card = el("article", { class: `site ${s.status.ok ? SITE_TINT[s.site.id] ?? "" : "down"}` },
     el("h2", {}, s.site.name),
-    el("p", { class: "source" }, s.site.system));
+    el("p", { class: "source" }, s.site.system),
+    el("a", { class: "inbox-link", href: `/app?view=${encodeURIComponent(s.site.id)}` }, `Open ${s.site.name}'s inbox`));
 
   if (!s.status.ok) {
     card.append(el("p", { class: "error" }, "Can't read this hospital right now. ", s.status.error));
@@ -257,8 +258,13 @@ $("#send").addEventListener("click", async () => {
   }
 });
 
-let view = "COORDINATOR";
-try { view = localStorage.getItem("bloodshift-view") || view; } catch {}
+// A ?view= link opens that lab's inbox directly. Without one, use the last view picked here.
+const VIEWS = [...$("#view").options].map((o) => o.value);
+let view = new URLSearchParams(location.search).get("view")?.toUpperCase() ?? "";
+if (!VIEWS.includes(view)) {
+  try { view = localStorage.getItem("bloodshift-view") || ""; } catch {}
+}
+if (!VIEWS.includes(view)) view = "COORDINATOR";
 
 async function act(t, kind, btn) {
   btn.disabled = true;
@@ -391,6 +397,9 @@ async function loadNotes() {
 
 function applyView() {
   $("#view").value = view;
+  const url = new URL(location.href);
+  if (view === "COORDINATOR") url.searchParams.delete("view"); else url.searchParams.set("view", view);
+  history.replaceState(null, "", url);
   const coordinator = view === "COORDINATOR";
   $("#coordinator").hidden = !coordinator;
   $("#inbox").hidden = coordinator;
