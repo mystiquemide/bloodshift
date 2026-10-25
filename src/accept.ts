@@ -26,6 +26,17 @@ export class AcceptError extends Error {
 
 export type SourceCheck = SourceSnapshot;
 
+// What to tell a lab that acts on a request someone already answered, usually from a stale page
+export function alreadyAnswered(state: string): string {
+  const what: Record<string, string> = {
+    refused: "was already refused", declined: "was already declined", superseded: "was replaced by a newer plan",
+    proposed: "hasn't been sent to the lab yet", checking: "is being checked right now",
+    reserved: "was already accepted and reserved", failed: "failed on its last attempt. Use Retry, or",
+  };
+  const said = what[state] ?? `is ${state}`;
+  return said.endsWith(" or") ? `This request ${said} refresh to see where it stands.` : `This request ${said}. Refresh to see where it stands.`;
+}
+
 const ID = /^[A-Z0-9-]{1,40}$/;
 const inFlight = new Set<string>();
 
@@ -93,7 +104,7 @@ export async function acceptTransfer(deps: AcceptDeps, id: string, actingSite: S
   // A double click, or a retry racing the first attempt, returns the transfer as it stands
   if (t.state === "reserved" || inFlight.has(id)) return t;
   if (t.state !== "requested" && t.state !== "failed" && t.state !== "checking") {
-    throw new AcceptError(`This transfer is ${t.state} and can't be accepted`, 409);
+    throw new AcceptError(alreadyAnswered(t.state), 409);
   }
 
   inFlight.add(id);

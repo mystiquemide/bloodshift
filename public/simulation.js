@@ -48,7 +48,7 @@ async function load() {
       $("#status").textContent = "";
       load();
     });
-    $("#summary").replaceChildren(el("div", { class: "l-stat" }, el("strong", {}, "Not available"), el("span", {}, `Couldn't run the simulation: ${err.message}`)), retry);
+    $("#summary").replaceChildren(el("div", { class: "l-stat" }, el("strong", {}, "Not available"), el("span", {}, `Couldn't run the simulation. ${err instanceof TypeError ? "Bloodshift isn't reachable. Check your connection, then try again." : "Try again in a moment."}`)), retry);
   }
 }
 

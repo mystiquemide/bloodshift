@@ -92,7 +92,7 @@ async function load() {
     render(await res.json());
   } catch (err) {
     $("#status").className = "status error";
-    $("#status").textContent = `Couldn't load stock: ${err.message}`;
+    $("#status").textContent = `Couldn't load stock: ${problem(err)}`;
   } finally {
     btn.disabled = false;
   }
@@ -177,7 +177,7 @@ function sourceControl(t) {
       box.replaceChildren(el("p", { class: "warn", role: "status" },
         `${from}'s own record now says ${t.unitId} is ${read.row?.status ?? "changed"}. Accept it to watch Bloodshift refuse it.`));
     } catch (err) {
-      box.replaceChildren(el("p", { class: "reason", role: "status" }, `Couldn't change it: ${err.message}`));
+      box.replaceChildren(el("p", { class: "reason", role: "status" }, `Couldn't change it: ${problem(err)}`));
     }
   });
   box.append(
@@ -215,11 +215,11 @@ function proofDrawer(t) {
   const box = el("details", { class: "proof" }, el("summary", {}, "Proof"), body);
   box.addEventListener("toggle", async () => {
     if (!box.open || body.childElementCount) return;
-    body.append(el("p", { class: "source" }, "Loading history"));
+    body.append(el("p", { class: "source" }, "Loading the proof"));
     try {
       const id = encodeURIComponent(t.id);
       const [{ transfer: x, history }, direct] = await Promise.all([
-        fetch(`/api/transfers/${id}/history`).then((r) => r.json()),
+        fetch(`/api/transfers/${id}/history`).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))),
         fetch(`/api/transfers/${id}/source`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
       body.replaceChildren(
@@ -232,7 +232,7 @@ function proofDrawer(t) {
         el("ol", { class: "history" }, ...history.map((h) => el("li", {}, `${h.state} by ${h.by}, ${new Date(h.at).toISOString().replace("T", " ").slice(0, 19)} UTC${h.reason ? `: ${h.reason}` : ""}`))),
         el("p", { class: "source" }, `Transfer ${x.id}, recorded in the Meterless World Model event log.`));
     } catch (err) {
-      body.replaceChildren(el("p", { class: "reason" }, `Couldn't load the proof: ${err.message}`));
+      body.replaceChildren(el("p", { class: "reason" }, `Couldn't load the proof: ${problem(err)}`));
     }
   });
   return box;
@@ -260,11 +260,12 @@ function renderSummary(run) {
 async function loadTransfers() {
   try {
     const res = await fetch("/api/transfers");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     demoControls = !!data.demoControls;
     renderTransfers(data.transfers);
   } catch (err) {
-    planStatus("error", `Couldn't load transfers: ${err.message}`);
+    planStatus("error", `Couldn't load transfers: ${problem(err)}`);
   }
 }
 
@@ -282,7 +283,7 @@ $("#run-plan").addEventListener("click", async () => {
     await loadTransfers();
     load();
   } catch (err) {
-    planStatus("error", err.message);
+    planStatus("error", problem(err));
   } finally {
     btn.disabled = false;
     btn.textContent = "Run morning plan";
@@ -297,7 +298,7 @@ $("#send").addEventListener("click", async () => {
     planStatus("loaded", `Sent ${sent.length} request${sent.length === 1 ? "" : "s"} to the receiving sites.`);
     await loadTransfers();
   } catch (err) {
-    planStatus("error", `Couldn't send: ${err.message}`);
+    planStatus("error", `Couldn't send: ${problem(err)}`);
   } finally {
     btn.disabled = false;
   }
@@ -325,7 +326,7 @@ async function act(t, kind, btn) {
     else if (out.transfer.state === "reserved") inboxStatus("loaded", `Reserved at ${siteName(t.from)}. Courier booking ${out.transfer.bookingId}.`);
     else if (out.transfer.state === "failed") inboxStatus("error", out.transfer.reason);
   } catch (err) {
-    inboxStatus("error", err.message);
+    inboxStatus("error", problem(err));
   }
   // Both panels re-read through Zetaris, so the stock table shows the reservation too
   await Promise.all([loadInbox(), load()]);
@@ -349,12 +350,21 @@ function openDecline(t, btn) {
       const out = await postJson(`/api/transfers/${encodeURIComponent(t.id)}/decline`, { site: view, reason });
       inboxStatus(out.replacement ? "loaded" : "partial", `Declined. ${out.note}`);
     } catch (err) {
-      inboxStatus("error", `Couldn't decline: ${err.message}`);
+      inboxStatus("error", `Couldn't decline: ${problem(err)}`);
     }
     await Promise.all([loadInbox(), loadNotes()]);
   });
   card.append(form);
   input.focus();
+}
+
+// Turns a failed request into something a lab user can act on. The server's own messages
+// are already written for people and pass through as they are.
+function problem(err) {
+  if (err instanceof TypeError) return "Bloodshift isn't reachable. Check your connection, then try again.";
+  if (/^HTTP 5\d\d/.test(err.message)) return "Something went wrong on the server. Try again in a moment.";
+  if (/^HTTP \d+/.test(err.message) || err instanceof SyntaxError) return "The server sent something unexpected. Refresh the page and try again.";
+  return err.message;
 }
 
 async function postJson(path, body) {
@@ -399,6 +409,7 @@ function inboxActions(t) {
 async function loadInbox() {
   try {
     const res = await fetch("/api/transfers");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     demoControls = !!data.demoControls;
     const mine = data.transfers.filter((t) => t.to === view && !["proposed", "superseded"].includes(t.state));
@@ -422,7 +433,7 @@ async function loadInbox() {
     }).filter(Boolean);
     $("#inbox-list").replaceChildren(...sections);
   } catch (err) {
-    inboxStatus("error", `Couldn't load the inbox: ${err.message}`);
+    inboxStatus("error", `Couldn't load the inbox: ${problem(err)}`);
   }
 }
 
@@ -438,7 +449,7 @@ async function loadNotes() {
           el("p", { class: "source" }, `Memory ${n.memoryId}, from transfer ${n.transferId}, declined by ${n.by}.`)))
       : [el("li", { class: "empty" }, "No declines yet. Reasons you give appear here and in later plans.")]));
   } catch (err) {
-    list.replaceChildren(el("li", { class: "reason" }, `Couldn't load decline notes: ${err.message}`));
+    list.replaceChildren(el("li", { class: "reason" }, `Couldn't load decline notes: ${problem(err)}`));
   }
 }
 

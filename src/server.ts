@@ -234,7 +234,7 @@ const server = createServer(async (req, res) => {
   } catch (err) {
     if (err instanceof AcceptError || err instanceof SourceError) return json(res, err.status, { error: err.message });
     console.error(err);
-    json(res, 500, { error: "Internal error. Check the server log." });
+    json(res, 500, { error: "Something went wrong on the server. Try again in a moment." });
   }
 });
 

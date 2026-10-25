@@ -1,6 +1,6 @@
 // A receiving site declines a request with a reason. The reason goes to H-MEM with
 // provenance, then the unit is replanned with that site excluded (BR-008).
-import { AcceptError } from "./accept.js";
+import { AcceptError, alreadyAnswered } from "./accept.js";
 import { MAX_REASON } from "./declineMemory.js";
 import { replan, type PlannerDeps, type Replan } from "./planner.js";
 import type { SiteId } from "./sites.js";
@@ -13,7 +13,7 @@ export async function declineTransfer(deps: PlannerDeps, id: string, site: SiteI
   if (!reason) throw new AcceptError("Give a reason for declining", 400);
   if (reason.length > MAX_REASON) throw new AcceptError(`Keep the reason under ${MAX_REASON} characters`, 400);
   if (t.state === "declined") return replan(deps, id, now);
-  if (t.state !== "requested") throw new AcceptError(`This transfer is ${t.state} and can't be declined`, 409);
+  if (t.state !== "requested") throw new AcceptError(alreadyAnswered(t.state), 409);
 
   await deps.store.transition(id, "declined", site, reason);
   deps.memory.record({ site, unitId: t.unitId, group: `${t.abo}${t.rh}`, transferId: id, reason, by: site });
