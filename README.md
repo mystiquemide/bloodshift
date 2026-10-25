@@ -20,7 +20,7 @@ Bloodshift isn't a data warehouse, a sync pipeline or a chatbot that decides whe
 
 ## How it works
 
-Every hospital keeps its own system. Zetaris reads all of them in place, with nothing copied.
+Every hospital keeps its own system. Zetaris reads all of them in place, with nothing copied. One federated SQL statement joins every hospital's available units with the courier's open slots, and only routes it returns can become transfers.
 
 A fixed rule finds units that would expire unused and lists every transfer that passes the business rules. NVIDIA Nemotron picks among those options and writes the request. It can't add a unit, site or slot.
 
@@ -33,7 +33,7 @@ Every step is an event in the Meterless World Model, and every decline reason is
 | Read stock | Anyone | Zetaris queries 2 Postgres databases, a CSV export and the courier's REST API live |
 | Run the morning plan | Coordinator | The rule projects outdates and builds options. Nemotron chooses and writes the requests. Nothing is reserved yet |
 | Send requests | Coordinator | Each request lands in the receiving lab's inbox |
-| Accept | Receiving lab | Live re-check through Zetaris, then a conditional reservation at the source and a courier booking. A final read confirms both |
+| Accept | Receiving lab | One federated statement re-reads the hospital's unit row and the courier's slot together, then a conditional reservation at the source and a courier booking. A final read confirms both |
 | Accept a unit that changed | Receiving lab | Refused with the source's reason. Nothing is written, and another unit is offered |
 | Decline with a reason | Receiving lab | The reason goes to H-MEM, and the unit is offered to another site, never the one that declined |
 | Retry | Receiving lab | A failed attempt, like a courier outage, is released cleanly and can be retried |
@@ -80,7 +80,7 @@ The end-to-end gate checks 13 things in a real browser against live sources. It 
 | What | Where |
 |---|---|
 | Live app | https://bloodshift.159-69-241-122.sslip.io, served from this repository's `main` with a self-hosted Zetaris |
-| Zetaris | Self-hosted Zetaris 2.4.3.1 from the "Run locally" bundle, federating 4 sources through its HTTP query API |
+| Zetaris | Self-hosted Zetaris 2.4.3.1 from the "Run locally" bundle, federating 4 sources through its HTTP query API. The planning route read ([`ROUTES_SQL`](src/stock.ts)) unions two Postgres databases and a CSV and joins them with a REST API. The accept re-check ([`readSource`](src/accept.ts)) joins a hospital row with a courier slot. Each runs in about 0.5 to 1 second |
 | Model | `nvidia/nemotron-3.5-super-vl-120b-a12b` through NVIDIA NIM, reasoning off, one batched call per plan |
 | Meterless | World Model and H-MEM reference engines, vendored unmodified in [`vendor/`](vendor) |
 | Where to look in the app | The Proof drawer on any transfer: SQL, query times, returned values, booking ID and state history |

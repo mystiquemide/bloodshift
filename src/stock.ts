@@ -54,6 +54,26 @@ export function unitsSql(site: Site): string {
 
 export const COURIER_SQL = `SELECT slot_id, from_site, to_site, departs_at, arrives_at, status, booking_id FROM ${COURIER_SOURCE}.slots`;
 
+// Every route a unit could take right now, in one federated statement: available units from
+// Site A and Site B (Postgres) and Site C (CSV), joined with open slots from the courier (REST).
+export const ROUTES_SQL =
+  `SELECT u.unit_id, s.slot_id FROM (${SITES.map((s) => `SELECT unit_id, site_id, status FROM ${s.zetarisSource}.platelet_units`).join(" UNION ALL ")}) u ` +
+  `JOIN ${COURIER_SOURCE}.slots s ON s.from_site = u.site_id WHERE u.status = 'available' AND s.status = 'open'`;
+
+export interface Routes {
+  sql: string;
+  queriedAt: string;
+  // "unitId|slotId" for every pair the federated read returned
+  pairs: Set<string>;
+}
+
+export const routeKey = (unitId: string, slotId: string) => `${unitId}|${slotId}`;
+
+export async function readRoutes(zetaris: Querier): Promise<Routes> {
+  const result = await zetaris.query(ROUTES_SQL);
+  return { sql: ROUTES_SQL, queriedAt: result.queriedAt, pairs: new Set(result.rows.map((r) => routeKey(str(r.unit_id), str(r.slot_id)))) };
+}
+
 function str(v: unknown): string {
   return v === null || v === undefined ? "" : String(v);
 }

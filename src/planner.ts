@@ -3,7 +3,7 @@
 // transfer in the World Model.
 import { randomUUID } from "node:crypto";
 import { SITES, SITE_POLICIES, type SiteId } from "./sites.js";
-import { readNetworkStock, readUsage, unitsSql, type NetworkStock, type Querier } from "./stock.js";
+import { readNetworkStock, readRoutes, readUsage, type NetworkStock, type Querier, type Routes } from "./stock.js";
 import { assertLiveUnits, buildCandidates, buildDemand, buildPlan, groupOf, rankCandidates, type Candidate, type PlanInput, type Transfer } from "./rules.js";
 import { ACTIVE, MOVED, type TransferRecord, type TransferStore } from "./transfers.js";
 import { templateDecider, type Decider, type DecisionOutcome, type DecisionRequest } from "./nemotron.js";
@@ -51,10 +51,15 @@ interface LiveContext {
   stock: NetworkStock;
   input: PlanInput;
   live: TransferRecord[];
+  routes: Routes;
 }
 
 async function readLive(deps: PlannerDeps, now: Date, superseding: boolean): Promise<LiveContext> {
-  const [stock, usage] = await Promise.all([readNetworkStock(deps.zetaris), readUsage(deps.zetaris).catch(() => null)]);
+  const [stock, usage, routes] = await Promise.all([
+    readNetworkStock(deps.zetaris),
+    readUsage(deps.zetaris).catch(() => null),
+    readRoutes(deps.zetaris).catch(() => null),
+  ]);
   // No cached data stands in for a live read. A plan over part of the network could move
   // units toward a site whose stock we can't see, so the run stops.
   const down = stock.sites.filter((s) => !s.status.ok).map((s) => s.site.name);
@@ -62,6 +67,7 @@ async function readLive(deps: PlannerDeps, now: Date, superseding: boolean): Pro
   if (down.length === stock.sites.length + 1) throw new PlanAborted("Plan not run: Zetaris isn't answering, so no source can be read.");
   if (down.length) throw new PlanAborted(`Plan not run: can't read ${down.join(", ")} right now.`);
   if (!usage) throw new PlanAborted("Plan not run: can't read usage history through Zetaris.");
+  if (!routes) throw new PlanAborted("Plan not run: the cross-site route query through Zetaris failed.");
 
   const existing = deps.store.list();
   if (superseding) {
@@ -85,8 +91,9 @@ async function readLive(deps: PlannerDeps, now: Date, superseding: boolean): Pro
     transferredUnitIds: new Set(live.filter((t) => MOVED.includes(t.state)).map((t) => t.unitId)),
     activeUnitIds: new Set(live.filter((t) => ACTIVE.includes(t.state)).map((t) => t.unitId)),
     declined,
+    routes: routes.pairs,
   };
-  return { stock, input, live };
+  return { stock, input, live, routes };
 }
 
 function requestsFor(candidates: Candidate[], deps: PlannerDeps): DecisionRequest[] {
@@ -181,8 +188,8 @@ async function record(deps: PlannerDeps, ctx: LiveContext, chosen: Chosen, planI
           messageBy: byModel ? "nemotron" : "template",
           evidence: {
             source: t.unit.source,
-            sql: unitsSql(site.site),
-            queriedAt: site.status.ok ? site.status.queriedAt : ctx.input.now.toISOString(),
+            sql: ctx.routes.sql,
+            queriedAt: ctx.routes.queriedAt,
             status: t.unit.status,
             expiresAt: t.unit.expiresAt,
           },

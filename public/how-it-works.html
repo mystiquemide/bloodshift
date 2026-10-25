@@ -34,9 +34,9 @@
       <h2 id="loop-h" class="l-h2">The loop</h2>
       <ol class="l-list">
         <li><strong>Read live.</strong> Zetaris federates Site A and Site B (Postgres), Site C (a CSV export) and the courier (a REST API). Nothing is copied or synced.</li>
-        <li><strong>Plan.</strong> A deterministic rule projects which units will expire unused and finds transfers that pass every business rule.</li>
+        <li><strong>Plan.</strong> One federated query joins every hospital's available units with the courier's open slots. A deterministic rule projects which units will expire unused and keeps only the routes that pass every business rule.</li>
         <li><strong>Write the request.</strong> Nemotron chooses among the rule-approved options and writes the request to the receiving lab.</li>
-        <li><strong>Re-check at accept.</strong> When a lab accepts, Bloodshift re-reads the unit and the courier slot through Zetaris. If either changed, the transfer is refused and another unit is offered.</li>
+        <li><strong>Re-check at accept.</strong> When a lab accepts, one federated statement re-reads the hospital's unit row and the courier's slot together. If either changed, the transfer is refused and another unit is offered.</li>
         <li><strong>Reserve and book.</strong> The unit is reserved in the sending hospital's own system and the courier slot is booked. The next Zetaris read shows both.</li>
       </ol>
     </section>

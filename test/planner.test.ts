@@ -14,9 +14,16 @@ const res = (rows: QueryResult["rows"]): QueryResult => ({ rows, queriedAt: NOW.
 
 // Site A holds O+ units it can't use in time. Sites B and C use O+ fast. Courier runs A to B and A to C.
 function zetaris(opts: { down?: string; extraUnits?: number; usedUnit?: string } = {}): Querier {
-  return {
+  const self: Querier = {
     query: async (sql) => {
       if (opts.down && sql.includes(opts.down)) throw new Error("source offline");
+      // The federated route read: available units joined with open slots from the same site
+      if (sql.includes("UNION ALL")) {
+        const units = (await Promise.all(["bs_site_a", "bs_site_b", "bs_site_c"].map((s) => self.query(`SELECT FROM ${s}.platelet_units`)))).flatMap((r) => r.rows);
+        const slots = (await self.query("SELECT FROM bs_courier.slots")).rows;
+        return res(units.filter((u) => u.status === "available").flatMap((u) =>
+          slots.filter((s) => s.from_site === u.site_id && s.status === "open").map((s) => ({ unit_id: u.unit_id ?? null, slot_id: s.slot_id ?? null }))));
+      }
       if (sql.includes("usage_history")) {
         if (sql.includes("bs_site_a")) return res([{ site_id: "SITE_A", abo: "O", rh: "+", days: 30, used: 30 }]);
         if (sql.includes("bs_site_b")) return res([{ site_id: "SITE_B", abo: "O", rh: "+", days: 30, used: 300 }]);
@@ -37,6 +44,7 @@ function zetaris(opts: { down?: string; extraUnits?: number; usedUnit?: string }
       return res([]);
     },
   };
+  return self;
 }
 
 async function deps(over: Partial<PlannerDeps> = {}): Promise<PlannerDeps> {
@@ -81,6 +89,28 @@ describe("runPlan", () => {
   it("refuses to plan over a partial network instead of using stale data", async () => {
     const d = await deps({ zetaris: zetaris({ down: "bs_site_b" }) });
     await expect(runPlan(d, NOW)).rejects.toBeInstanceOf(PlanAborted);
+    expect(d.store.list()).toEqual([]);
+  });
+
+  it("only proposes routes the federated Zetaris read returned, and cites that read", async () => {
+    // Baseline: which unit the plan proposes when every route comes back
+    const first = (await runPlan(await deps(), NOW)).transfers[0]!.unitId;
+    // Same network, but the cross-source route read doesn't return that unit
+    const base = zetaris();
+    const z: Querier = { query: async (sql) => {
+      const r = await base.query(sql);
+      return sql.includes("UNION ALL") ? { ...r, rows: r.rows.filter((row) => row.unit_id !== first) } : r;
+    } };
+    const out = await runPlan(await deps({ zetaris: z }), NOW);
+    expect(out.transfers.length).toBeGreaterThan(0);
+    expect(out.transfers.map((t) => t.unitId)).not.toContain(first);
+    expect(out.transfers.every((t) => t.evidence.sql?.includes("UNION ALL") && t.evidence.sql.includes("JOIN bs_courier.slots"))).toBe(true);
+  });
+
+  it("doesn't plan when the cross-site route query fails", async () => {
+    const base = zetaris();
+    const d = await deps({ zetaris: { query: async (sql) => (sql.includes("UNION ALL") ? Promise.reject(new Error("engine error")) : base.query(sql)) } });
+    await expect(runPlan(d, NOW)).rejects.toThrow(/route query/);
     expect(d.store.list()).toEqual([]);
   });
 

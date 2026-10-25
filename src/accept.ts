@@ -43,23 +43,26 @@ function siteName(id: SiteId): string {
 // before they go into SQL, since the Zetaris HTTP API takes no bind parameters.
 export async function readSource(zetaris: Querier, t: Pick<TransferRecord, "unitId" | "from" | "slotId">): Promise<SourceCheck> {
   if (!ID.test(t.unitId) || !ID.test(t.slotId)) throw new AcceptError("Malformed unit or slot ID", 400);
-  const sql = [
-    `SELECT unit_id, status, reserved_for, expires_at, updated_at FROM ${sourceOf(t.from)}.platelet_units WHERE unit_id = '${t.unitId}'`,
-    `SELECT slot_id, status, booking_id FROM ${COURIER_SOURCE}.slots WHERE slot_id = '${t.slotId}'`,
-  ];
-  const [unit, slot] = await Promise.all(sql.map((q) => zetaris.query(q)));
-  const u = unit!.rows[0];
-  const s = slot!.rows[0];
+  // One federated statement reads the sending hospital's row and the courier's slot together.
+  // The full outer join keeps whichever side still exists, so a missing unit or slot is named.
+  const sql =
+    `SELECT u.unit_id, u.status, u.reserved_for, u.expires_at, u.updated_at, s.slot_id, s.status AS slot_status, s.booking_id ` +
+    `FROM (SELECT unit_id, status, reserved_for, expires_at, updated_at FROM ${sourceOf(t.from)}.platelet_units WHERE unit_id = '${t.unitId}') u ` +
+    `FULL OUTER JOIN (SELECT slot_id, status, booking_id FROM ${COURIER_SOURCE}.slots WHERE slot_id = '${t.slotId}') s ON 1 = 1`;
+  const result = await zetaris.query(sql);
+  const row = result.rows[0] ?? {};
   const text = (v: unknown) => (v === null || v === undefined || String(v).trim() === "" || v === "null" ? null : String(v));
+  const hasUnit = text(row.unit_id) !== null;
+  const hasSlot = text(row.slot_id) !== null;
   return {
-    sql,
-    queriedAt: unit!.queriedAt,
-    unitStatus: u ? text(u.status) : null,
-    reservedFor: u ? text(u.reserved_for) : null,
-    expiresAt: u && text(u.expires_at) ? isoTime(u.expires_at) : null,
-    unitUpdatedAt: u && text(u.updated_at) ? isoTime(u.updated_at) : null,
-    slotStatus: s ? text(s.status) : null,
-    bookingId: s ? text(s.booking_id) : null,
+    sql: [sql],
+    queriedAt: result.queriedAt,
+    unitStatus: hasUnit ? text(row.status) : null,
+    reservedFor: hasUnit ? text(row.reserved_for) : null,
+    expiresAt: hasUnit && text(row.expires_at) ? isoTime(row.expires_at) : null,
+    unitUpdatedAt: hasUnit && text(row.updated_at) ? isoTime(row.updated_at) : null,
+    slotStatus: hasSlot ? text(row.slot_status) : null,
+    bookingId: hasSlot ? text(row.booking_id) : null,
   };
 }
 

@@ -133,7 +133,7 @@ function renderSim(sim) {
 const STEPS = [
   ["Read live", "Zetaris reads each hospital's own system in place: two Postgres databases, a CSV export and the courier's API.",
     (t) => t && [`Read at ${utc(t.evidence.queriedAt)}`, t.evidence.sql]],
-  ["Plan", "A fixed rule projects which units would expire unused and lists every transfer that passes the rules. Nemotron picks among those and writes the request.",
+  ["Plan", "One federated query joins every hospital's units with the courier's open slots. A fixed rule keeps the routes that pass every rule, and Nemotron picks among those and writes the request.",
     (t) => t && [`Written by ${t.messageBy === "nemotron" ? "Nemotron" : "the standard template"}`, t.message]],
   ["Request", "The receiving lab gets the request in its inbox and can accept or decline with a reason.",
     (t) => t && [`Sent to the receiving lab`, t.message]],

@@ -26,9 +26,11 @@ function zetarisOver(w: World): Querier {
   return {
     query: async (sql) => {
       if (w.zetarisDown) throw new Error("Zetaris unreachable");
-      const rows = sql.includes("bs_courier")
-        ? [{ slot_id: "S-01", ...w.slot }]
-        : [{ unit_id: "U-A-1", ...w.unit, updated_at: "2026-10-24 09:14:00.0" }];
+      // One federated statement returns the unit row and the slot row joined
+      const rows = [{
+        unit_id: "U-A-1", ...w.unit, updated_at: "2026-10-24 09:14:00.0",
+        slot_id: "S-01", slot_status: w.slot.status, booking_id: w.slot.booking_id,
+      }];
       return { rows, queriedAt: NOW.toISOString(), engineMs: 1 };
     },
   };
@@ -107,6 +109,22 @@ describe("accept", () => {
     expect((await acceptTransfer(expired.deps, "T-1", "SITE_B")).reason).toMatch(/expired/);
     const cancelled = await setup(world({ slot: { status: "cancelled", booking_id: "" } }));
     expect((await acceptTransfer(cancelled.deps, "T-1", "SITE_B")).reason).toMatch(/cancelled/);
+  });
+
+  it("re-checks the unit and slot in one federated statement, and names a slot that's gone", async () => {
+    const { deps, writer } = await setup(world());
+    const seen: string[] = [];
+    deps.zetaris = { query: async (sql) => {
+      seen.push(sql);
+      // The courier no longer has the slot: the outer join returns the unit side only
+      return { rows: [{ unit_id: "U-A-1", status: "available", reserved_for: null, expires_at: "2026-10-26 00:00:00.0", updated_at: "2026-10-24 09:14:00.0", slot_id: null, slot_status: null, booking_id: null }], queriedAt: NOW.toISOString(), engineMs: 1 };
+    } };
+    const t = await acceptTransfer(deps, "T-1", "SITE_B");
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatch(/bs_site_a\.platelet_units.*FULL OUTER JOIN.*bs_courier\.slots/);
+    expect(t.state).toBe("refused");
+    expect(t.reason).toMatch(/no longer lists slot S-01/);
+    expect(writer.calls).toEqual([]);
   });
 
   it("refuses when the row changes between the Zetaris read and the write", async () => {

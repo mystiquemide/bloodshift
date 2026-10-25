@@ -29,6 +29,9 @@ export interface PlanInput {
   activeUnitIds: Set<string>;
   // BR-008: sites that declined a unit, which are never offered it again
   declined: Map<string, Set<SiteId>>;
+  // Unit and slot pairs from the federated Zetaris route read. Only these can become candidates.
+  // The simulation has no Zetaris, so it leaves this out.
+  routes?: Set<string>;
 }
 
 export type Demand = Map<string, number>;
@@ -198,6 +201,7 @@ export function buildCandidates(input: PlanInput): CandidateResult {
       }
       const routeSlots = slots
         .filter((s) => s.fromSite === unit.siteId && s.toSite === to && s.status === "open" && Date.parse(s.departsAt) > now.getTime())
+        .filter((s) => !input.routes || input.routes.has(`${unit.unitId}|${s.slotId}`))
         .sort((a, b) => Date.parse(a.arrivesAt) - Date.parse(b.arrivesAt));
       if (routeSlots.length === 0) {
         rejections.push({ unitId: unit.unitId, to, rule: "SLOT", reason: `No open courier slot ${unit.siteId} to ${to}` });
