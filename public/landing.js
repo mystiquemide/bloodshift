@@ -92,6 +92,9 @@ function renderTransfers(transfers, names) {
 
   // Hero: the newest request waiting on a lab, else the newest transfer of any kind
   const hero = newest(["requested"])[0] ?? reserved[0];
+  // Send "Try the refusal" to a lab that has a request waiting, so there's something to refuse
+  const waiting = newest(["requested"])[0];
+  if (waiting) $("#try-refusal").href = `/app?view=${encodeURIComponent(waiting.to)}`;
   const slot = $("#hero-bubble");
   if (hero) {
     slot.replaceChildren(el("p", { class: "from" }, `${names[hero.from] ?? hero.from} to ${names[hero.to] ?? hero.to}`),
