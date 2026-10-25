@@ -45,6 +45,41 @@ describe("ZetarisClient", () => {
     expect(calls.filter((c) => c === "/api/auth/login")).toHaveLength(2);
   });
 
+  it("treats Zetaris's bare 400 Bad Request as an expired token and logs in again", async () => {
+    let queries = 0;
+    const calls: string[] = [];
+    const z = client((path) => {
+      if (path === "/api/auth/login") return login();
+      queries++;
+      return queries === 2 ? Response.json({ msg: "Bad Request" }, { status: 400 }) : Response.json({ headers: [], data: [] });
+    }, calls);
+    await z.query("SELECT 1");
+    await expect(z.query("SELECT 2")).resolves.toMatchObject({ rows: [] });
+    expect(calls.filter((c) => c === "/api/auth/login")).toHaveLength(2);
+  });
+
+  it("keeps a 400 with an engine message as a query error, without logging in again", async () => {
+    const calls: string[] = [];
+    const z = client((path) => (path === "/api/auth/login" ? login() : Response.json({ msg: "Table `x` cannot be found" }, { status: 400 })), calls);
+    await expect(z.query("SELECT x")).rejects.toMatchObject({ kind: "query" });
+    expect(calls.filter((c) => c === "/api/auth/login")).toHaveLength(1);
+  });
+
+  it("logs in again before the token's own expiry", async () => {
+    const jwt = (exp: number) => `h.${Buffer.from(JSON.stringify({ exp })).toString("base64url")}.s`;
+    const calls: string[] = [];
+    // First token expires in 30 seconds, inside the refresh margin
+    let n = 0;
+    const z = client((path) => {
+      if (path === "/api/auth/login") return Response.json({ idToken: jwt(Math.floor(Date.now() / 1000) + (n++ === 0 ? 30 : 900)), orgId: 7 });
+      return Response.json({ headers: [], data: [] });
+    }, calls);
+    await z.query("SELECT 1");
+    await z.query("SELECT 2");
+    await z.query("SELECT 3");
+    expect(calls.filter((c) => c === "/api/auth/login")).toHaveLength(2);
+  });
+
   it("surfaces a query error with the engine's message", async () => {
     const z = client((path) => (path === "/api/auth/login" ? login() : Response.json({ msg: "table not found" }, { status: 500 })));
     await expect(z.query("SELECT x")).rejects.toMatchObject({ kind: "query", message: expect.stringContaining("table not found") });

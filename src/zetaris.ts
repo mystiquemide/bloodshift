@@ -32,6 +32,28 @@ export interface ZetarisOptions {
 interface Session {
   token: string;
   orgId: string;
+  // Epoch ms when the token stops working. Zetaris issues 15-minute tokens.
+  expiresAt: number;
+}
+
+// Log in again this long before the token's own expiry
+const REFRESH_MARGIN_MS = 60_000;
+
+function tokenExpiry(token: string): number {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8")) as { exp?: unknown };
+    if (typeof payload.exp === "number") return payload.exp * 1000;
+  } catch {
+    // Not a readable JWT. Fall back to the documented lifetime.
+  }
+  return Date.now() + 15 * 60_000;
+}
+
+// Zetaris answers an expired or invalid token with a bare 400 {"msg":"Bad Request"}, not 401.
+// Query errors are also 400, but carry the engine's message.
+function isAuthRejection(status: number, body: unknown): boolean {
+  if (status === 401 || status === 403) return true;
+  return status === 400 && !!body && typeof body === "object" && (body as { msg?: unknown }).msg === "Bad Request" && Object.keys(body).length === 1;
 }
 
 export class ZetarisClient {
@@ -48,7 +70,7 @@ export class ZetarisClient {
     try {
       return await this.runQuery(sql, limit);
     } catch (err) {
-      // A stale token is the common failure after a Zetaris restart. Log in again once.
+      // A stale token (expired early, or Zetaris restarted) is rejected. Log in again once.
       if (err instanceof ZetarisError && err.kind === "auth" && this.session) {
         this.session = null;
         return this.runQuery(sql, limit);
@@ -65,7 +87,7 @@ export class ZetarisClient {
       { Authorization: `Bearer ${session.token}`, "X-Org-ID": session.orgId },
     );
     const body = await readJson(res);
-    if (res.status === 401 || res.status === 403) {
+    if (isAuthRejection(res.status, body)) {
       throw new ZetarisError("Zetaris rejected the session", "auth", res.status);
     }
     if (!res.ok) {
@@ -75,7 +97,7 @@ export class ZetarisClient {
   }
 
   private async login(): Promise<Session> {
-    if (this.session) return this.session;
+    if (this.session && Date.now() < this.session.expiresAt - REFRESH_MARGIN_MS) return this.session;
     const res = await this.post("/api/auth/login", {
       username: this.opts.username,
       password: this.opts.password,
@@ -86,7 +108,7 @@ export class ZetarisClient {
     if (!login.idToken) throw new ZetarisError("Zetaris login returned no token", "auth", res.status);
     const orgId = this.opts.orgId || (login.orgId !== undefined ? String(login.orgId) : "");
     if (!orgId) throw new ZetarisError("No Zetaris organisation ID. Set ZETARIS_ORG_ID", "auth");
-    this.session = { token: login.idToken, orgId };
+    this.session = { token: login.idToken, orgId, expiresAt: tokenExpiry(login.idToken) };
     return this.session;
   }
 
