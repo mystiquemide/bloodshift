@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AcceptError, acceptTransfer, type AcceptDeps } from "../src/accept.js";
+import { markSourceUsed, readSourceDirect } from "../src/sourceDemo.js";
 import { TransferStore } from "../src/transfers.js";
 import type { CourierClient, BookingResult } from "../src/courier.js";
-import type { ReserveResult, SiteWriter } from "../src/siteWriters.js";
+import type { DirectRow, ReserveResult, SiteWriter } from "../src/siteWriters.js";
 import type { Querier } from "../src/stock.js";
 import type { SiteId } from "../src/sites.js";
 
@@ -50,6 +51,15 @@ class FakeWriter implements SiteWriter {
   async release(_id: string, forSite: SiteId): Promise<void> {
     this.calls.push("release");
     if (this.w.unit.status === "reserved" && this.w.unit.reserved_for === forSite) this.w.unit = { ...this.w.unit, status: "available", reserved_for: null };
+  }
+  async markUsed(): Promise<ReserveResult> {
+    this.calls.push("markUsed");
+    if (this.w.unit.status !== "available" || this.w.unit.reserved_for) return { ok: false, reason: `the unit is already ${this.w.unit.status}` };
+    this.w.unit = { ...this.w.unit, status: "used" };
+    return { ok: true };
+  }
+  async readDirect(): Promise<DirectRow> {
+    return { status: this.w.unit.status, reservedFor: this.w.unit.reserved_for, expiresAt: this.w.unit.expires_at, updatedAt: "2026-10-24 09:14:00.0" };
   }
 }
 
@@ -198,5 +208,35 @@ describe("accept", () => {
     await store.transition("T-2", "requested", "coordinator");
     await expect(acceptTransfer(deps, "T-2", "SITE_B")).rejects.toMatchObject({ status: 400 });
     expect(store.get("T-2")!.state).toBe("requested");
+  });
+});
+
+describe("the sending hospital's own record", () => {
+  it("marks a waiting unit used at its source without touching the transfer, then the accept is refused", async () => {
+    const w = world();
+    const { deps, store, writer, courier } = await setup(w);
+    const read = await markSourceUsed({ store, writers: deps.writers }, "T-1");
+    expect(read.row?.status).toBe("used");
+    expect(store.get("T-1")!.state).toBe("requested");
+    const t = await acceptTransfer(deps, "T-1", "SITE_B");
+    expect(t.state).toBe("refused");
+    expect(writer.calls).toEqual(["markUsed"]);
+    expect(courier.calls).toBe(0);
+  });
+
+  it("won't change a unit once the request has been answered", async () => {
+    const w = world();
+    const { deps, store, writer } = await setup(w);
+    await acceptTransfer(deps, "T-1", "SITE_B");
+    await expect(markSourceUsed({ store, writers: deps.writers }, "T-1")).rejects.toMatchObject({ status: 409 });
+    expect(writer.calls).not.toContain("markUsed");
+    expect(w.unit.status).toBe("reserved");
+  });
+
+  it("reads the row straight from the hospital's system, and 404s an unknown transfer", async () => {
+    const { deps, store } = await setup(world());
+    const read = await readSourceDirect({ store, writers: deps.writers }, "T-1");
+    expect(read).toMatchObject({ site: "SITE_A", unitId: "U-A-1", row: { status: "available" } });
+    await expect(readSourceDirect({ store, writers: deps.writers }, "T-404")).rejects.toMatchObject({ status: 404 });
   });
 });

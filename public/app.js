@@ -156,7 +156,45 @@ function transferCard(t, actions = []) {
     el("p", { class: "source" }, `Planned from ${e.source}. It was ${e.status} and expires ${time(e.expiresAt)}.`),
     t.state === "reserved" ? snapshotLine("Confirmed", t.confirmation) : snapshotLine("Checked", t.check),
     actions.length ? el("div", { class: "actions" }, ...actions) : "",
+    sourceControl(t),
     proofDrawer(t));
+}
+
+// Set from /api/transfers. Off on any deployment that isn't a demo.
+let demoControls = false;
+
+// Lets anyone watch the invariant hold: change the unit in the sending hospital's own system,
+// the way its lab would when it issues the unit locally, then accept and see the refusal.
+function sourceControl(t) {
+  if (!demoControls || t.state !== "requested") return "";
+  const from = siteName(t.from);
+  const box = el("div", { class: "source-sim" });
+  const b = el("button", { type: "button", class: "secondary" }, `Mark ${t.unitId} used at ${from}`);
+  b.addEventListener("click", async () => {
+    b.disabled = true;
+    try {
+      const read = await postJson(`/api/transfers/${encodeURIComponent(t.id)}/source/used`, {});
+      box.replaceChildren(el("p", { class: "warn", role: "status" },
+        `${from}'s own record now says ${t.unitId} is ${read.row?.status ?? "changed"}. Accept it to watch Bloodshift refuse it.`));
+    } catch (err) {
+      box.replaceChildren(el("p", { class: "reason", role: "status" }, `Couldn't change it: ${err.message}`));
+    }
+  });
+  box.append(
+    el("p", { class: "label" }, "Try the refusal"),
+    b,
+    el("p", { class: "source" }, `Changes ${from}'s own record, the way its lab system would when it issues the unit. Bloodshift isn't told.`));
+  return box;
+}
+
+function directBlock(d) {
+  const r = d.row;
+  const text = r
+    ? `${d.unitId} is ${r.status}${r.reservedFor ? ` for ${r.reservedFor}` : ""}, last updated ${r.updatedAt}.`
+    : `${d.unitId} isn't in its system.`;
+  return el("div", { class: "proof-step direct" },
+    el("p", {}, el("strong", {}, "Hospital's own record"), ` read directly from ${siteName(d.site)} (${d.system}), not through Zetaris, at ${d.readAt.replace("T", " ").slice(0, 19)} UTC`),
+    el("p", { class: "source" }, text));
 }
 
 function sqlBlock(label, sql, when, detail) {
@@ -179,8 +217,13 @@ function proofDrawer(t) {
     if (!box.open || body.childElementCount) return;
     body.append(el("p", { class: "source" }, "Loading history"));
     try {
-      const { transfer: x, history } = await (await fetch(`/api/transfers/${encodeURIComponent(t.id)}/history`)).json();
+      const id = encodeURIComponent(t.id);
+      const [{ transfer: x, history }, direct] = await Promise.all([
+        fetch(`/api/transfers/${id}/history`).then((r) => r.json()),
+        fetch(`/api/transfers/${id}/source`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
       body.replaceChildren(
+        direct ? directBlock(direct) : el("p", { class: "source" }, "The hospital's own record couldn't be read directly right now."),
         sqlBlock("Planned from", x.evidence.sql, x.evidence.queriedAt, `Returned: ${x.evidence.status}, expires ${x.evidence.expiresAt}. Source: ${x.evidence.source}.`),
         x.check ? sqlBlock("Re-checked at accept", x.check.sql, x.check.queriedAt, snapshotDetail(x.check)) : "",
         x.confirmation ? sqlBlock("Confirmed after the writes", x.confirmation.sql, x.confirmation.queriedAt, snapshotDetail(x.confirmation)) : "",
@@ -217,7 +260,9 @@ function renderSummary(run) {
 async function loadTransfers() {
   try {
     const res = await fetch("/api/transfers");
-    renderTransfers((await res.json()).transfers);
+    const data = await res.json();
+    demoControls = !!data.demoControls;
+    renderTransfers(data.transfers);
   } catch (err) {
     planStatus("error", `Couldn't load transfers: ${err.message}`);
   }
@@ -354,7 +399,9 @@ function inboxActions(t) {
 async function loadInbox() {
   try {
     const res = await fetch("/api/transfers");
-    const mine = (await res.json()).transfers.filter((t) => t.to === view && !["proposed", "superseded"].includes(t.state));
+    const data = await res.json();
+    demoControls = !!data.demoControls;
+    const mine = data.transfers.filter((t) => t.to === view && !["proposed", "superseded"].includes(t.state));
     const waiting = mine.filter((t) => t.state === "requested").length;
     $("#inbox-h").textContent = `Requests for ${siteName(view)}`;
     $("#inbox-count").textContent = waiting ? `${waiting} waiting` : "Nothing waiting";

@@ -426,3 +426,8 @@ td.warn { color: var(--yellow-45); font-weight: 600; }
 .l-404 .l-lead { max-width: 30em; }
 @media (max-width: 900px) { .l-404 h1 { font-size: 36px; } .l-404 { background-image: none; } }
 .landing main.l-404 { padding: 64px var(--gutter); }
+.source-sim { border: 1px dashed var(--plum-5); border-radius: var(--radius-bubble); padding: 12px 14px; display: grid; gap: 6px; justify-items: start; background: var(--white); }
+.source-sim .label { margin: 0; font-size: 13px; font-weight: 600; text-transform: none; color: var(--plum-5); }
+.source-sim .source { margin: 0; }
+.source-sim button { padding: 7px 16px; font-size: 14px; }
+.proof-step.direct { border-left: 3px solid var(--coral-3); padding-left: 10px; }

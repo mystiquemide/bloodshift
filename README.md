@@ -46,9 +46,8 @@ Open https://bloodshift.159-69-241-122.sslip.io/app.
 2. **Run the morning plan.** Click Run morning plan, then Send. Each request says whether Nemotron or the standard template wrote it.
 3. **Accept one.** Switch View as to Riverside Medical lab, or open [/app?view=SITE_B](https://bloodshift.159-69-241-122.sslip.io/app?view=SITE_B), and click Accept. The card shows what it's checking, then Reserved with a courier booking ID.
 4. **Open Proof.** Every transfer has a Proof drawer with the exact SQL Zetaris ran at planning, at the accept re-check and after the writes, plus the full state history.
-5. **Decline one.** Decline another request with a reason. The unit goes to another site, and the reason shows under What you've told the network.
-
-The refusal path needs access to a hospital's database, so it's in the local run below. You can see a real refusal on [How it works](https://bloodshift.159-69-241-122.sslip.io/how-it-works).
+5. **Break the rule.** On another waiting request, click Mark used under Try the refusal. That changes the unit in the sending hospital's own database or CSV, the way its lab system would, and Bloodshift isn't told. Now click Accept. It's refused with the hospital's reason, nothing is reserved or booked, and a replacement is offered. Proof shows the hospital's own row read directly, next to the Zetaris re-check.
+6. **Decline one.** Decline another request with a reason. The unit goes to another site, and the reason shows under What you've told the network.
 
 ## How I tried to break it
 
@@ -56,7 +55,7 @@ Every case below has a unit test. The ones marked Live were also checked against
 
 | Case | Outcome | Proof |
 |---|---|---|
-| Unit marked used at its source before accept | Refused with the source's reason. No reservation, no booking, replacement offered | [test](test/accept.test.ts#L94), [replacement](test/planner.test.ts#L172), Live |
+| Unit marked used at its source before accept | Refused with the source's reason. No reservation, no booking, replacement offered | [test](test/accept.test.ts#L94), [replacement](test/planner.test.ts#L172), [source control](test/accept.test.ts), Live, and on the live demo with Mark used |
 | Row changes between the Zetaris read and the write | The conditional write fails, so nothing is overwritten | [test](test/accept.test.ts#L112) |
 | Courier slot taken by someone else | Refused, and the reservation is released | [test](test/accept.test.ts#L143) |
 | Courier down during accept | Fails, releases the unit, and Retry succeeds later | [test](test/accept.test.ts#L131), Live |
@@ -83,7 +82,7 @@ The end-to-end gate checks 13 things in a real browser against live sources. It 
 | Zetaris | Self-hosted Zetaris 2.4.3.1 from the "Run locally" bundle, federating 4 sources through its HTTP query API. The planning route read ([`ROUTES_SQL`](src/stock.ts)) unions two Postgres databases and a CSV and joins them with a REST API. The accept re-check ([`readSource`](src/accept.ts)) joins a hospital row with a courier slot. Each runs in about 0.5 to 1 second |
 | Model | `nvidia/nemotron-3.5-super-vl-120b-a12b` through NVIDIA NIM, reasoning off, one batched call per plan |
 | Meterless | World Model and H-MEM reference engines, vendored unmodified in [`vendor/`](vendor) |
-| Where to look in the app | The Proof drawer on any transfer: SQL, query times, returned values, booking ID and state history |
+| Where to look in the app | The Proof drawer on any transfer: the hospital's own row read directly from its database or CSV, then the Zetaris SQL, query times, returned values, booking ID and state history |
 | Demo resets | Every 6 hours at 00, 06, 12 and 18 UTC: fresh synthetic stock and courier slots, then one starter round with a reservation, a refusal and a decline. `bash scripts/reset-demo.sh` does the same locally |
 
 ## Real usage
@@ -105,6 +104,7 @@ There's no real hospital usage yet. Every hospital, unit and patient demand here
 - **No sign-in.** View as switches between the coordinator and each lab. The server checks that the acting site is the receiving site, but it can't verify who is acting. It's a demo of the workflow, not an access-controlled product.
 - **Writes don't go through Zetaris.** Zetaris only reads. Reservations go to each hospital's own system through small adapters, so hospitals keep write control.
 - **The courier is a mock service** with a REST API.
+- **Mark used is a demo control.** It writes to a hospital's own record so anyone can trigger a refusal, and only on a request still waiting on its lab. Set `DEMO_CONTROLS=off` to remove it.
 - **The simulation is modest.** Over 20 runs the rule cuts outdates by 12.8% against no sharing, and by 11.6% over 100 runs. It runs on synthetic demand and isn't a measured result. The published programs above also changed ordering and practice, so their numbers are larger.
 - **The clinical rules are a starting point.** Platelet matching follows the SNBTS Policy for Platelet Selection (2014). Some business rules are working assumptions, such as the 12-hour minimum shelf life on arrival and one unit of safety stock per group. They're labelled as such on [How it works](https://bloodshift.159-69-241-122.sslip.io/how-it-works).
 - **One process, one network.** History lives in a local event log, and there's one coordinator view.

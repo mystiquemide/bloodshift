@@ -13,11 +13,24 @@ const run = promisify(execFile);
 
 export type ReserveResult = { ok: true } | { ok: false; reason: string };
 
+// A unit row read straight from the hospital's own system, without Zetaris
+export interface DirectRow {
+  status: string;
+  reservedFor: string | null;
+  expiresAt: string;
+  updatedAt: string;
+}
+
 export interface SiteWriter {
   reserve(unitId: string, forSite: SiteId): Promise<ReserveResult>;
   // Undoes a reservation this app made, used when the courier booking fails
   release(unitId: string, forSite: SiteId): Promise<void>;
+  // Demo only: does what the hospital's own lab system would do when a unit is issued locally
+  markUsed(unitId: string): Promise<ReserveResult>;
+  readDirect(unitId: string): Promise<DirectRow | null>;
 }
+
+const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v ?? ""));
 
 export class PostgresWriter implements SiteWriter {
   constructor(private readonly pool: pg.Pool) {}
@@ -55,6 +68,23 @@ export class PostgresWriter implements SiteWriter {
        WHERE unit_id = $1 AND status = 'reserved' AND reserved_for = $2`,
       [unitId, forSite],
     );
+  }
+
+  async markUsed(unitId: string): Promise<ReserveResult> {
+    const res = await this.pool.query(
+      `UPDATE platelet_units SET status = 'used', updated_at = now()
+       WHERE unit_id = $1 AND status = 'available' AND reserved_for IS NULL`,
+      [unitId],
+    );
+    if (res.rowCount === 1) return { ok: true };
+    const row = await this.readDirect(unitId);
+    return { ok: false, reason: row ? `the unit is already ${row.status}` : "the unit is no longer in its system" };
+  }
+
+  async readDirect(unitId: string): Promise<DirectRow | null> {
+    const res = await this.pool.query(`SELECT status, reserved_for, expires_at, updated_at FROM platelet_units WHERE unit_id = $1`, [unitId]);
+    const r = res.rows[0] as { status: string; reserved_for: string | null; expires_at: unknown; updated_at: unknown } | undefined;
+    return r ? { status: r.status, reservedFor: r.reserved_for || null, expiresAt: iso(r.expires_at), updatedAt: iso(r.updated_at) } : null;
   }
 
   async end(): Promise<void> {
@@ -145,6 +175,29 @@ export class CsvWriter implements SiteWriter {
         return "write";
       }),
     );
+  }
+
+  markUsed(unitId: string): Promise<ReserveResult> {
+    return this.serial(() =>
+      this.update((row) => {
+        if (row.unit_id !== unitId) return "same";
+        if (row.status !== "available" || row.reserved_for) return `the unit is already ${row.status}`;
+        row.status = "used";
+        return "write";
+      }),
+    );
+  }
+
+  async readDirect(unitId: string): Promise<DirectRow | null> {
+    const text = await this.exec(["exec", this.container, "cat", this.path]);
+    const [head, ...lines] = text.trimEnd().split("\n");
+    const header = head!.split(",");
+    for (const line of lines) {
+      const cells = line.split(",");
+      const get = (name: string) => cells[header.indexOf(name)] ?? "";
+      if (get("unit_id") === unitId) return { status: get("status"), reservedFor: get("reserved_for") || null, expiresAt: get("expires_at"), updatedAt: get("updated_at") };
+    }
+    return null;
   }
 
   async release(unitId: string, forSite: SiteId): Promise<void> {

@@ -12,6 +12,7 @@ import { declineTransfer } from "./decline.js";
 import { AcceptError, acceptTransfer } from "./accept.js";
 import { CourierClient } from "./courier.js";
 import { siteWritersFromEnv } from "./siteWriters.js";
+import { markSourceUsed, readSourceDirect, SourceError } from "./sourceDemo.js";
 import { SITES, type SiteId } from "./sites.js";
 import type { IncomingMessage } from "node:http";
 import { compare, DEFAULT_SITES } from "./simulation.js";
@@ -60,6 +61,8 @@ function simulationSummary(): unknown {
   return simulation;
 }
 const writers = siteWritersFromEnv();
+// The "mark used at its source" control, for demos. Set DEMO_CONTROLS=off anywhere else.
+const DEMO_CONTROLS = optional("DEMO_CONTROLS", "on") !== "off";
 const courier = new CourierClient(`http://127.0.0.1:${optional("COURIER_PORT", "8090")}`);
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -146,7 +149,15 @@ const server = createServer(async (req, res) => {
       return json(res, 200, await readNetworkStock(zetaris));
     }
     if (req.method === "GET" && url.pathname === "/api/transfers") {
-      return json(res, 200, { transfers: store.list() });
+      return json(res, 200, { transfers: store.list(), demoControls: DEMO_CONTROLS });
+    }
+    const source = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/source(\/used)?$/);
+    if (source && req.method === "GET" && !source[2]) {
+      return json(res, 200, await readSourceDirect({ store, writers }, source[1]!));
+    }
+    if (source && req.method === "POST" && source[2]) {
+      if (!DEMO_CONTROLS) return json(res, 403, { error: "Demo controls are off" });
+      return json(res, 200, await markSourceUsed({ store, writers }, source[1]!));
     }
     const history = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/history$/);
     if (req.method === "GET" && history) {
@@ -201,7 +212,7 @@ const server = createServer(async (req, res) => {
     }
     json(res, 405, { error: "method not allowed" });
   } catch (err) {
-    if (err instanceof AcceptError) return json(res, err.status, { error: err.message });
+    if (err instanceof AcceptError || err instanceof SourceError) return json(res, err.status, { error: err.message });
     console.error(err);
     json(res, 500, { error: "Internal error. Check the server log." });
   }
