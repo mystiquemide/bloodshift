@@ -84,6 +84,7 @@ The end-to-end gate checks 13 things in a real browser against live sources. It 
 | Model | `nvidia/nemotron-3.5-super-vl-120b-a12b` through NVIDIA NIM, reasoning off, one batched call per plan |
 | Meterless | World Model and H-MEM reference engines, vendored unmodified in [`vendor/`](vendor) |
 | Where to look in the app | The Proof drawer on any transfer: SQL, query times, returned values, booking ID and state history |
+| Demo resets | Every 6 hours at 00, 06, 12 and 18 UTC: fresh synthetic stock and courier slots, then one starter round with a reservation, a refusal and a decline. `bash scripts/reset-demo.sh` does the same locally |
 
 ## Real usage
 

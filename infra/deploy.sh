@@ -153,6 +153,34 @@ for i in $(seq 1 30); do curl -fs -o /dev/null "http://127.0.0.1:${APP_PORT}/" &
 curl -fs -o /dev/null "http://127.0.0.1:${APP_PORT}/" || fail "Bloodshift didn't start. Check: journalctl -u bloodshift -n 50"
 curl -fs "http://127.0.0.1:${APP_PORT}/api/stock" | grep -q '"state":"loaded"' && echo "All four sources read live through Zetaris." || echo "Warning: not every source is live yet. Check the app's status bar."
 
+step "Resetting the demo every 6 hours"
+# Synthetic stock and courier slots are relative to the time of seeding, so the demo is reset
+# at 00, 06, 12 and 18 UTC with fresh stock and one real starter round.
+cat > /etc/systemd/system/bloodshift-reset.service <<UNIT
+[Unit]
+Description=Reset the Bloodshift demo network
+After=bloodshift.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=$APP_DIR
+ExecStart=/bin/bash $APP_DIR/scripts/reset-demo.sh
+UNIT
+cat > /etc/systemd/system/bloodshift-reset.timer <<UNIT
+[Unit]
+Description=Reset the Bloodshift demo network every 6 hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now bloodshift-reset.timer >/dev/null
+systemctl start bloodshift-reset.service && echo "Demo reset and starter round done." || echo "Warning: the demo reset failed. Check: journalctl -u bloodshift-reset -n 50"
+
 ip=$(curl -fs https://api.ipify.org || hostname -I | awk '{print $1}')
 if [ "$MODE" = standalone ]; then
   step "Serving over HTTPS with Caddy"
