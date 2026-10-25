@@ -33,7 +33,7 @@ Use "View as" to switch between the network coordinator and each hospital's lab.
 `infra/deploy.sh` sets up Zetaris and Bloodshift on one Ubuntu 24.04 server. Download `zetaris-platform.zip` from Zetaris Cloud ("Run locally") onto the server, then:
 
 ```bash
-git clone https://github.com/mystiquemide/open-agent.git && cd open-agent
+git clone https://github.com/mystiquemide/bloodshift.git && cd bloodshift
 sudo ZETARIS_ZIP=/root/zetaris-platform.zip MODE=standalone bash infra/deploy.sh
 ```
 

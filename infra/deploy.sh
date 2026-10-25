@@ -14,7 +14,7 @@ set -euo pipefail
 
 MODE="${MODE:-standalone}"
 ZETARIS_ZIP="${ZETARIS_ZIP:-}"
-REPO_URL="${REPO_URL:-https://github.com/mystiquemide/open-agent.git}"
+REPO_URL="${REPO_URL:-https://github.com/mystiquemide/bloodshift.git}"
 APP_DIR="${APP_DIR:-/opt/bloodshift}"
 ZETARIS_DIR="${ZETARIS_DIR:-/opt/zetaris-platform}"
 ZETARIS_UI_PORT="${ZETARIS_UI_PORT:-3100}"
