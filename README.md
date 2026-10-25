@@ -178,6 +178,18 @@ sudo ZETARIS_ZIP=/root/zetaris-platform.zip MODE=standalone bash infra/deploy.sh
 
 Use `MODE=proxy` when another reverse proxy already holds ports 80 and 443. The server needs about 4 GB of free memory and 15 GB of disk.
 
-## Built during the hackathon
+## How it was built
 
-Built during the Open Agent Hackathon 2026 build window, from 2026-10-24. Pre-existing components, used as published: the Meterless World Model and H-MEM reference engines (Apache-2.0, vendored unmodified in [`vendor/`](vendor)) and the DM Sans font (SIL Open Font License, in [`public/fonts`](public/fonts)). Everything else in this repository was written for this project.
+Bloodshift was planned and built during the Open Agent Hackathon 2026 build window, from 2026-10-24, with Claude Opus 5.5 as the development partner, used in the Cursor IDE and in Claude Code.
+
+- **Planning.** Claude helped turn the idea into a written plan: the problem, the business rules with their sources, the "no live row, no move" invariant, and milestones, each with a pass or fail check.
+- **Building.** The product was built in vertical slices: live stock, the rule engine and plan, accept with source reservation, then decline and replan with Nemotron. Each slice was checked end to end against the real Zetaris, Postgres, CSV and courier before the next one started.
+- **Verifying.** Claude wrote the unit tests and the browser-driven end-to-end checks, ran them after every change, and reviewed the code and the live site for security, accessibility and broken links before release.
+
+The builder chose the problem, the scope and every product decision, and reviewed the work at each step.
+
+Pre-existing components, used as published: the Meterless World Model and H-MEM reference engines (Apache-2.0, vendored unmodified in [`vendor/`](vendor)) and the DM Sans font (SIL Open Font License, in [`public/fonts`](public/fonts)). Everything else in this repository was written for this project.
+
+## License
+
+[MIT](LICENSE)
