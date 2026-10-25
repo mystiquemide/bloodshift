@@ -153,33 +153,35 @@ const SECURITY_HEADERS: Record<string, string> = {
 
 const server = createServer(async (req, res) => {
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+  // HEAD is answered like GET. Node sends the headers and leaves the body out.
+  const method = req.method === "HEAD" ? "GET" : req.method;
   const url = new URL(req.url ?? "/", "http://localhost");
   // State-changing calls must carry a custom header. A cross-site form or fetch can't add one
   // without a CORS preflight, which this server never approves.
-  if (req.method === "POST" && req.headers["x-bloodshift"] !== "1") {
+  if (method === "POST" && req.headers["x-bloodshift"] !== "1") {
     return json(res, 403, { error: "Missing request header" });
   }
   try {
-    if (req.method === "GET" && url.pathname === "/api/stock") {
+    if (method === "GET" && url.pathname === "/api/stock") {
       return json(res, 200, await readNetworkStock(zetaris));
     }
-    if (req.method === "GET" && url.pathname === "/api/transfers") {
+    if (method === "GET" && url.pathname === "/api/transfers") {
       return json(res, 200, { transfers: store.list(), demoControls: DEMO_CONTROLS });
     }
     const source = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/source(\/used)?$/);
-    if (source && req.method === "GET" && !source[2]) {
+    if (source && method === "GET" && !source[2]) {
       return json(res, 200, await readSourceDirect({ store, writers }, source[1]!));
     }
-    if (source && req.method === "POST" && source[2]) {
+    if (source && method === "POST" && source[2]) {
       if (!DEMO_CONTROLS) return json(res, 403, { error: "Demo controls are off" });
       return json(res, 200, await markSourceUsed({ store, writers }, source[1]!));
     }
     const history = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/history$/);
-    if (req.method === "GET" && history) {
+    if (method === "GET" && history) {
       const t = store.get(history[1]!);
       return t ? json(res, 200, { transfer: t, history: store.history(t.id) }) : json(res, 404, { error: "No such transfer" });
     }
-    if (req.method === "POST" && url.pathname === "/api/plan") {
+    if (method === "POST" && url.pathname === "/api/plan") {
       if (planInFlight) return json(res, 409, { error: "A plan is already running." });
       const wait = Math.ceil((lastPlanAt + PLAN_COOLDOWN_MS - Date.now()) / 1000);
       if (wait > 0) return json(res, 429, { error: `A plan ran moments ago. Try again in ${wait} ${wait === 1 ? "second" : "seconds"}.` });
@@ -195,7 +197,7 @@ const server = createServer(async (req, res) => {
       }
     }
     const accept = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/(accept|retry)$/);
-    if (req.method === "POST" && accept) {
+    if (method === "POST" && accept) {
       const site = siteFrom(await readJson(req));
       const transfer = await acceptTransfer({ zetaris, store, writers, courier }, accept[1]!, site);
       // A refused unit is gone at its source. Offer the receiving site another one.
@@ -203,23 +205,23 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { transfer });
     }
     const decline = url.pathname.match(/^\/api\/transfers\/([\w-]+)\/decline$/);
-    if (req.method === "POST" && decline) {
+    if (method === "POST" && decline) {
       const body = await readJson(req);
       return json(res, 200, await declineTransfer(planner, decline[1]!, siteFrom(body), body.reason));
     }
-    if (req.method === "GET" && url.pathname === "/api/simulation") {
+    if (method === "GET" && url.pathname === "/api/simulation") {
       return json(res, 200, simulationSummary());
     }
-    if (req.method === "GET" && url.pathname === "/api/declines") {
+    if (method === "GET" && url.pathname === "/api/declines") {
       const site = url.searchParams.get("site");
       if (site && !SITES.some((s) => s.id === site)) return json(res, 400, { error: "Unknown site" });
       return json(res, 200, { declines: site ? memory.forSite(site as SiteId, 50) : memory.all() });
     }
-    if (req.method === "POST" && url.pathname === "/api/transfers/send") {
+    if (method === "POST" && url.pathname === "/api/transfers/send") {
       return json(res, 200, { sent: await sendProposals(store, "coordinator") });
     }
-    if (req.method === "GET" && url.pathname.startsWith("/api/")) return json(res, 404, { error: "not found" });
-    if (req.method === "GET") {
+    if (method === "GET" && url.pathname.startsWith("/api/")) return json(res, 404, { error: "not found" });
+    if (method === "GET") {
       const to = REDIRECTS[url.pathname];
       if (to) {
         // Keep ?view= so old inbox links still land on the right lab
