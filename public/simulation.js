@@ -13,6 +13,7 @@ function el(tag, attrs = {}, ...children) {
 
 const pct = (x) => `${Math.round(x * 100)}%`;
 const one = (x) => x.toFixed(1);
+const change = (x) => { const n = Math.round(x * 100); return n > 0 ? `+${n}%` : n < 0 ? `\u2212${-n}%` : "0%"; };
 
 function bar(value, max, kind) {
   return el("div", { class: "bar-cell" },
@@ -25,25 +26,29 @@ async function load() {
     const res = await fetch("/api/simulation");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
-    $("#status").className = "status loaded";
-    $("#status").textContent = `${s.runs} runs of ${s.days} days each.`;
+    $("#status").textContent = `Over ${s.runs} runs of ${s.days} days. Per-run reduction ranged from ${pct(s.outdateReductionRange[0])} to ${pct(s.outdateReductionRange[1])}.`;
+    const stat = (big, small) => el("div", { class: "l-stat" }, el("strong", {}, big), el("span", {}, small));
     $("#summary").replaceChildren(
-      el("div", {}, el("strong", {}, pct(s.outdateReduction)), " fewer outdated units with the rule"),
-      el("div", {}, el("strong", {}, `${one(s.noSharing.outdates)} → ${one(s.rule.outdates)}`), " outdates per run"),
-      el("div", {}, el("strong", {}, `${one(s.noSharing.shortages)} → ${one(s.rule.shortages)}`), " shortages per run"),
-      el("div", {}, el("strong", {}, one(s.rule.transfers)), " transfers per run"),
-      el("p", { class: "source" }, `Per-run reduction ranged from ${pct(s.outdateReductionRange[0])} to ${pct(s.outdateReductionRange[1])}.`));
+      stat(pct(s.outdateReduction), "fewer outdated units"),
+      stat(`${one(s.noSharing.outdates)} → ${one(s.rule.outdates)}`, "outdates per run"),
+      stat(`${one(s.noSharing.shortages)} → ${one(s.rule.shortages)}`, "shortages per run"),
+      stat(one(s.rule.transfers), "transfers per run"));
     const groups = Object.keys(s.outdatesByGroup.noSharing).sort((a, b) => s.outdatesByGroup.noSharing[b] - s.outdatesByGroup.noSharing[a]);
     const max = Math.max(...groups.map((g) => s.outdatesByGroup.noSharing[g]));
     $("#groups tbody").replaceChildren(...groups.map((g) => {
       const before = s.outdatesByGroup.noSharing[g];
       const after = s.outdatesByGroup.rule[g] ?? 0;
       return el("tr", {}, el("td", {}, g), el("td", {}, bar(before, max, "before")), el("td", {}, bar(after, max, "after")),
-        el("td", {}, before ? `${Math.round((after / before - 1) * 100)}%` : "-"));
+        el("td", {}, before ? change(after / before - 1) : "-"));
     }));
   } catch (err) {
-    $("#status").className = "status error";
-    $("#status").textContent = `Couldn't run the simulation: ${err.message}`;
+    const retry = el("button", { type: "button" }, "Try again");
+    retry.addEventListener("click", () => {
+      $("#summary").replaceChildren(el("div", { class: "l-stat pending" }, el("strong", {}, "Running"), el("span", {}, "the simulation")));
+      $("#status").textContent = "";
+      load();
+    });
+    $("#summary").replaceChildren(el("div", { class: "l-stat" }, el("strong", {}, "Not available"), el("span", {}, `Couldn't run the simulation: ${err.message}`)), retry);
   }
 }
 

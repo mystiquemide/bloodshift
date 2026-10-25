@@ -51,4 +51,15 @@ await card.locator(".proof-body .proof-step").first().waitFor();
 await card.locator("details.proof").scrollIntoViewIfNeeded();
 await saveWebp(page, await card.locator("details.proof").screenshot(), "proof.webp");
 
+// IMG-6: a lab inbox's refused transfers, each with the reason and the replacement offered
+const refused = transfers.find((t) => t.state === "refused" && t.replacementId);
+if (refused) {
+  await page.goto(`${BASE}/app?view=${refused.to}`);
+  const group = page.locator('#inbox-list .inbox-group[aria-label="Refused"]');
+  await group.waitFor();
+  await saveWebp(page, await group.locator(".transfer").first().screenshot(), "inbox.webp");
+} else {
+  console.error("No refused transfer with a replacement yet, so public/img/inbox.webp wasn't updated.");
+}
+
 await browser.close();

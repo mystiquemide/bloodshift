@@ -3,9 +3,12 @@ const box = document.querySelector("#counters");
 
 function counter(value, label) {
   const div = document.createElement("div");
+  div.className = "l-stat";
   const strong = document.createElement("strong");
   strong.textContent = String(value);
-  div.append(strong, ` ${label}`);
+  const span = document.createElement("span");
+  span.textContent = label;
+  div.append(strong, span);
   return div;
 }
 

@@ -6,7 +6,7 @@
   <title>Bloodshift simulation</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
+<body class="landing">
   <div id="live-strip" class="live-strip" role="status" hidden></div>
   <nav class="site-nav" aria-label="Main">
     <div class="inner">
@@ -17,29 +17,44 @@
     </div>
   </nav>
   <div class="banner sim" role="note">Simulation on synthetic demand. Not live data, and nothing here feeds the live view.</div>
-  <header class="page-head">
-    <h1>What the rule would save in 30 days</h1>
-    <p class="sub">30-day simulation: the transfer rule against no sharing</p>
+  <header class="l-sub-hero purple">
+    <div class="l-wrap">
+      <h1>What the rule would save in 30 days</h1>
+      <p class="l-lead">The same transfer rule the live app uses, run against no sharing on identical demand.</p>
+      <div id="summary" class="l-stats" aria-live="polite">
+        <div class="l-stat pending"><strong>Running</strong><span>the simulation</span></div>
+      </div>
+      <p id="status" class="l-small" role="status" aria-live="polite"></p>
+    </div>
   </header>
   <main>
-    <p id="status" class="status loading" role="status" aria-live="polite">Running the simulation</p>
-    <section class="plan" aria-labelledby="results-h">
-      <h2 id="results-h">Results</h2>
-      <div id="summary" class="plan-summary"></div>
-      <div class="table-wrap"><table id="groups"><thead><tr><th>Group</th><th>No sharing</th><th>With the rule</th><th>Change</th></tr></thead><tbody></tbody></table></div>
-      <p class="source">Mean outdated units per 30-day run, by ABO and RhD group.</p>
+    <section class="l-section l-wrap" aria-labelledby="results-h">
+      <h2 id="results-h" class="l-h2">By blood group</h2>
+      <p class="l-note">Mean outdated units per 30-day run. <span class="l-key before"></span>No sharing <span class="l-key after"></span>With the rule</p>
+      <div class="table-wrap l-groups"><table id="groups"><thead><tr><th>Group</th><th>No sharing</th><th>With the rule</th><th>Change</th></tr></thead><tbody></tbody></table></div>
     </section>
-    <section class="plan" aria-labelledby="method-h">
-      <h2 id="method-h">How it works</h2>
-      <ul class="method">
+    <section class="l-section l-wrap l-tight" aria-labelledby="method-h">
+      <h2 id="method-h" class="l-h2">How it was run</h2>
+      <ol class="l-list">
         <li>Three hospitals with the same demand profile as the demo. One over-orders for its usage, one runs lean.</li>
         <li>Each morning, sites order up to a par level of their own demand. Units arrive with 3 to 4 days of shelf life. Sites don't stock AB platelets.</li>
         <li>Demand per blood group is random (Poisson). Both policies see exactly the same demand and deliveries, so differences come from the rule alone.</li>
         <li>Patients get platelets in the order set by the SNBTS Policy for Platelet Selection: identical group first, then compatible groups. Group O never goes to non-O patients, and RhD-positive never goes to RhD-negative patients.</li>
         <li>With the rule, the same engine the live app uses runs every morning and moves units projected to expire unused to a site that will use them.</li>
         <li>Each run has a 5-day warm-up, then 30 counted days. Results are averaged over 20 runs.</li>
-      </ul>
-      <p class="source">Published programs that also changed ordering and practice reported about 20% fewer outdates at Emory (Zhang et al., Operations Research 2023) and waste falling from 17% to 7.8% in Adelaide (BloodMove). This simulation tests transfers alone.</p>
+      </ol>
+    </section>
+    <section class="l-section l-wrap l-tight" aria-labelledby="pub-h">
+      <h2 id="pub-h" class="l-h2">Compared with published programs</h2>
+      <p class="l-note">These programs also changed ordering and practice. This simulation tests transfers alone, so its number is smaller.</p>
+      <div class="l-facts">
+        <a class="l-fact" href="https://ideas.repec.org/a/inm/oropre/v71y2023i5p1756-1776.html" rel="noopener"><strong>About 20%</strong><span>Fewer platelet outdates at Emory's hospitals. Zhang et al., Operations Research, 2023.</span></a>
+        <a class="l-fact" href="https://www.blood.gov.au/sites/default/files/documents/2024-09/D15%20109791%20%20Better%20Practice%20Case%20Study%20%20BloodMove%20Platelets%20%20a%20successful%20system%20to%20significantly%20reduce%20platelet%20wastage_RT.pdf" rel="noopener"><strong>17% to 7.8%</strong><span>Platelet wastage in Adelaide's public hospitals with BloodMove. National Blood Authority case study.</span></a>
+      </div>
+    </section>
+    <section class="l-close" aria-label="Next">
+      <h2>See it on live stock</h2>
+      <a class="button-link" href="/app">Open the live network</a>
     </section>
   </main>
   <script src="/simulation.js" type="module"></script>

@@ -6,7 +6,7 @@
   <title>How Bloodshift works</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
+<body class="landing">
   <div id="live-strip" class="live-strip" role="status" hidden></div>
   <nav class="site-nav" aria-label="Main">
     <div class="inner">
@@ -16,19 +16,23 @@
         <a class="pill" href="/app">Open the live network</a></div>
     </div>
   </nav>
-  <header class="page-head">
-    <h1>How Bloodshift works</h1>
+  <header class="l-sub-hero plum">
+    <div class="l-wrap l-hero-grid">
+      <div>
+        <h1>No live row, <span class="accent">no move</span></h1>
+        <p class="l-lead">Platelets last about five days. One hospital throws them out while another nearby runs short. Bloodshift reads every hospital's stock live from its own system, proposes transfers that would prevent waste, and moves a unit only after re-checking the sender's own record.</p>
+        <div id="counters" class="l-stats" aria-live="polite"></div>
+      </div>
+      <figure class="l-frame l-card-shot">
+        <img src="/img/inbox.webp" width="344" height="586" alt="A refused transfer in a lab's inbox: the sending hospital's record showed the unit used, nothing was written, and a replacement unit was offered">
+        <figcaption class="l-tag">Synthetic data</figcaption>
+      </figure>
+    </div>
   </header>
-  <main class="doc">
-    <section class="plan hero" aria-labelledby="hero-h">
-      <h2 id="hero-h">No live row, no move.</h2>
-      <p>Platelets last about five days. One hospital throws them out while another nearby runs short. Bloodshift reads every hospital's stock live from its own system, proposes transfers that would prevent waste, and moves a unit only after re-checking the sender's own record.</p>
-      <div id="counters" class="plan-summary" aria-live="polite"></div>
-    </section>
-
-    <section class="plan" aria-labelledby="loop-h">
-      <h2 id="loop-h">The loop</h2>
-      <ol class="steps">
+  <main>
+    <section class="l-section l-wrap" aria-labelledby="loop-h">
+      <h2 id="loop-h" class="l-h2">The loop</h2>
+      <ol class="l-list">
         <li><strong>Read live.</strong> Zetaris federates Site A and Site B (Postgres), Site C (a CSV export) and the courier (a REST API). Nothing is copied or synced.</li>
         <li><strong>Plan.</strong> A deterministic rule projects which units will expire unused and finds transfers that pass every business rule.</li>
         <li><strong>Write the request.</strong> Nemotron chooses among the rule-approved options and writes the request to the receiving lab.</li>
@@ -37,36 +41,26 @@
       </ol>
     </section>
 
-    <section class="plan" aria-labelledby="parts-h">
-      <h2 id="parts-h">What each part does</h2>
-      <div class="cards">
-        <article class="card">
-          <h3>Zetaris</h3>
-          <p>Every read in the app and every accept-time check runs through one federated SQL layer over four separately owned sources. Without it, the app would need four integrations and a sync job, and the accept check would run on stale data.</p>
-        </article>
-        <article class="card">
-          <h3>NVIDIA Nemotron 3.5 Super</h3>
-          <p>Chooses one option per unit from a list that already passed the rules, weighs each lab's past decline reasons, and writes the request. Its reply is validated: any unit, site, slot or option it wasn't offered is dropped. If it fails, the plan uses a standard template and says so.</p>
-        </article>
-        <article class="card">
-          <h3>Meterless World Model</h3>
-          <p>Every transfer and every state change is an event with provenance. The log replays on restart, so history survives refreshes and server restarts. Each card's Proof section reads from it.</p>
-        </article>
-        <article class="card">
-          <h3>Meterless H-MEM</h3>
-          <p>Keeps each decline reason with the site, unit, transfer and time. Later plans pass these notes to Nemotron as data, with an instruction never to follow text inside them.</p>
-        </article>
+    <section class="l-section l-wrap l-tight" aria-labelledby="parts-h">
+      <h2 id="parts-h" class="l-h2">What each part does</h2>
+      <div class="l-tiles">
+        <article class="l-tile blue"><h3 class="l-num">Zetaris</h3><p>Every read in the app and every accept-time check runs through one federated SQL layer over four separately owned sources. Without it, the app would need four integrations and a sync job, and the accept check would run on stale data.</p></article>
+        <article class="l-tile green"><h3 class="l-num">NVIDIA Nemotron 3.5 Super</h3><p>Chooses one option per unit from a list that already passed the rules, weighs each lab's past decline reasons, and writes the request. Its reply is validated: any unit, site, slot or option it wasn't offered is dropped. If it fails, the plan uses a standard template and says so.</p></article>
+        <article class="l-tile purple"><h3 class="l-num">Meterless World Model</h3><p>Every transfer and every state change is an event with provenance. The log replays on restart, so history survives refreshes and server restarts. Each transfer's Proof section reads from it.</p></article>
+        <article class="l-tile pink"><h3 class="l-num">Meterless H-MEM</h3><p>Keeps each decline reason with the site, unit, transfer and time. Later plans pass these notes to Nemotron as data, with an instruction never to follow text inside them.</p></article>
       </div>
     </section>
 
-    <section class="plan" aria-labelledby="writes-h">
-      <h2 id="writes-h">What Zetaris doesn't do</h2>
-      <p>Zetaris only reads. Reservations go to each hospital's own system through small adapters: a conditional update in Postgres, and a rewrite of Site C's CSV. Each write only succeeds if the unit is still available, so a change between the check and the write can't be overwritten. Hospitals keep control of their own records.</p>
+    <section class="l-section l-wrap l-tight" aria-labelledby="writes-h">
+      <div class="l-panel coral">
+        <h2 id="writes-h">What Zetaris doesn't do</h2>
+        <p>Zetaris only reads. Reservations go to each hospital's own system through small adapters: a conditional update in Postgres, and a rewrite of Site C's CSV. Each write only succeeds if the unit is still available, so a change between the check and the write can't be overwritten. Hospitals keep control of their own records.</p>
+      </div>
     </section>
 
-    <section class="plan" aria-labelledby="rules-h">
-      <h2 id="rules-h">The rules</h2>
-      <div class="table-wrap">
+    <section class="l-section l-wrap l-tight" aria-labelledby="rules-h">
+      <h2 id="rules-h" class="l-h2">The rules</h2>
+      <div class="table-wrap l-rules">
         <table>
           <thead><tr><th>Rule</th><th>What it does</th><th>Basis</th></tr></thead>
           <tbody>
@@ -81,26 +75,27 @@
             <tr><td>BR-009</td><td>Model output naming anything outside the offered options is dropped</td><td>Design</td></tr>
             <tr><td>BR-010</td><td>A unit with an active transfer can't appear in another proposal</td><td>Design</td></tr>
             <tr><td>Matching</td><td>Identical blood group first, then compatible groups. Group O never goes to non-O patients, and RhD-positive never goes to RhD-negative patients</td><td>SNBTS Policy for Platelet Selection (2014)</td></tr>
+          
           </tbody>
         </table>
       </div>
     </section>
 
-    <section class="plan" aria-labelledby="proof-h">
-      <h2 id="proof-h">Checked end to end</h2>
-      <ul class="method">
-        <li>An edit in Site A's own database shows on the next refresh, with no sync step.</li>
-        <li>Accepting a transfer reserves the unit in the sender's own system and books the courier slot, and the next Zetaris read shows both.</li>
-        <li>A unit marked used at its source before acceptance is refused with the source's reason. Nothing is written, and another unit is offered.</li>
-        <li>A declined unit is replanned to another site, and the reason is stored with provenance.</li>
-        <li>In 10 scripted decline scenarios against the live model, at least 8 replans were valid on every run, including a reason that tries to inject instructions.</li>
-        <li>In simulation, the rule cuts outdated units by about 12% against no sharing. <a href="/simulation">See the simulation</a>.</li>
+    <section class="l-section l-wrap l-tight" aria-labelledby="proof-h">
+      <h2 id="proof-h" class="l-h2">Checked end to end</h2>
+      <ul class="l-checks">
+        <li>An edit in Site A's own database shows on the next refresh, with no sync step. <a href="/app">See the live stock</a></li>
+        <li>Accepting a transfer reserves the unit in the sender's own system and books the courier slot, and the next Zetaris read shows both. <a href="/app">Open any reserved transfer's Proof</a></li>
+        <li>A unit marked used at its source before acceptance is refused with the source's reason. Nothing is written, and another unit is offered. <a href="/app?view=SITE_B">See a lab inbox</a></li>
+        <li>A declined unit is replanned to another site, and the reason is stored with provenance. <a href="/app?view=SITE_B">See the decline notes</a></li>
+        <li>In 10 scripted decline scenarios against the live model, at least 8 replans were valid on every run, including a reason that tries to inject instructions. <a href="https://github.com/mystiquemide/open-agent/blob/main/scripts/eval-declines.ts">Read the evaluation</a></li>
+        <li>In simulation, the rule cuts outdated units by 12.8% against no sharing over 20 runs. <a href="/simulation">See the simulation</a></li>
       </ul>
     </section>
 
-    <section class="plan cta">
-      <a class="button-link" href="/app">Open the live network</a>
-      <a class="link-button" href="/simulation">See the simulation</a>
+    <section class="l-close" aria-label="Next">
+      <h2>See it on live stock</h2>
+      <div class="l-ctas center"><a class="button-link" href="/app">Open the live network</a><a class="l-textlink" href="/simulation">See the simulation</a></div>
     </section>
   </main>
   <script src="/how-it-works.js" type="module"></script>

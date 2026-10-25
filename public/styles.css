@@ -372,3 +372,50 @@ td.warn { color: var(--yellow-45); font-weight: 600; }
   .l-close { background-image: radial-gradient(circle at 0% 100%, var(--coral-3) 0 60px, transparent 61px), radial-gradient(circle at 100% 0%, #eb80fd 0 60px, transparent 61px); }
   .l-float { left: 12px; right: 12px; width: auto; }
 }
+
+/* Inner pages built from the landing parts */
+.banner.sim { background: var(--purple-5); color: var(--blush-1); font-size: 14px; }
+.l-sub-hero { padding: 56px 0 48px; }
+.l-sub-hero.purple { background: var(--purple-1); color: var(--ink-0); }
+.l-sub-hero.plum { background: var(--plum-5); color: var(--blush-1); }
+.l-sub-hero h1 { font-size: 56px; line-height: 1.05; font-weight: 600; letter-spacing: -1px; margin: 0; color: inherit; }
+.l-sub-hero.plum h1 .accent { color: var(--coral-3); }
+.l-stats { display: flex; flex-wrap: wrap; gap: 14px; align-items: stretch; margin: 8px 0 12px; }
+.l-stat { background: var(--white); color: var(--ink-0); border-radius: var(--radius-tile); padding: 18px 22px; min-width: 180px; display: flex; flex-direction: column; gap: 4px; }
+.l-stat strong { font-size: 40px; line-height: 1; font-weight: 700; color: var(--purple-5); }
+.l-stat span { color: var(--grey-text); }
+.l-stat.pending strong { color: var(--grey-text); animation: l-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .l-stat.pending strong { animation: none; } }
+.l-stats button { align-self: center; }
+.l-tight { padding-top: 0; }
+.l-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin: 0 6px 0 14px; vertical-align: -1px; }
+.l-key.before, .l-groups .bar.before { background: var(--grey-2); }
+.l-key.after, .l-groups .bar.after { background: var(--coral-3); }
+.l-groups { max-height: none; }
+.l-groups table { font-size: 16px; }
+.l-groups td, .l-groups th { padding: 10px 12px; }
+.l-groups .bar { height: 18px; border-radius: 6px; }
+.l-groups .bar-cell { min-width: 200px; }
+.l-list { margin: 20px 0 0; padding: 0; list-style: none; counter-reset: n; display: grid; gap: 12px; max-width: 860px; }
+.l-list li { counter-increment: n; background: var(--grey-1); border-radius: var(--radius-bubble); padding: 14px 18px 14px 60px; position: relative; font-size: 17px; }
+.l-list li::before { content: counter(n); position: absolute; left: 16px; top: 13px; width: 30px; height: 30px; border-radius: 50%; background: var(--plum-5); color: var(--white); display: grid; place-items: center; font-weight: 600; font-size: 15px; }
+@media (max-width: 900px) { .l-sub-hero h1 { font-size: 38px; } .l-stat { min-width: 0; flex: 1 1 140px; } .l-stat strong { font-size: 30px; } }
+.l-sub-hero.plum .l-stat strong { color: var(--plum-5); font-size: 34px; }
+.l-sub-hero.plum .l-stat { min-width: 150px; flex: 1 1 150px; }
+.l-panel { border-radius: var(--radius-tile); padding: 28px; }
+.l-panel.coral { background: var(--coral-1); }
+.l-panel h2 { font-size: 28px; margin: 0 0 10px; }
+.l-panel p { margin: 0; font-size: 17px; max-width: 60em; }
+.l-rules { max-height: none; border-radius: var(--radius-tile); border: 1px solid var(--grey-2); }
+.l-rules table { font-size: 15px; }
+.l-rules td, .l-rules th { white-space: normal; padding: 12px 14px; vertical-align: top; }
+.l-rules td:first-child { font-family: ui-monospace, monospace; font-weight: 600; white-space: nowrap; }
+.l-checks { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 12px; max-width: 900px; }
+.l-checks li { background: var(--green-1); border-radius: var(--radius-bubble); padding: 14px 18px 14px 56px; position: relative; font-size: 17px; }
+.l-checks li::before { content: "\2713"; position: absolute; left: 16px; top: 14px; width: 26px; height: 26px; border-radius: 50%; background: var(--green-45); color: var(--white); display: grid; place-items: center; font-size: 14px; }
+.l-checks a { color: var(--green-45); font-weight: 600; margin-left: 4px; }
+.l-ctas.center { justify-content: center; }
+.l-card-shot { justify-self: center; max-width: 360px; }
+.l-card-shot img { background: transparent; }
+.l-card-shot .l-tag { top: 14px; bottom: auto; }
+.l-sub-hero.plum .l-stats { display: grid; grid-template-columns: 1fr 1fr; }
