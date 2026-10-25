@@ -39,6 +39,9 @@ const decider: Decider = process.env.NVIDIA_API_KEY
 const planner: PlannerDeps = { zetaris, store, decider, memory };
 console.log(`Requests and replans by ${decider.name === "nemotron" ? `Nemotron (${optional("NEMOTRON_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")})` : "the standard template"}`);
 let planInFlight = false;
+// Each plan run calls Nemotron, and anyone can reach the public demo, so runs are spaced out
+const PLAN_COOLDOWN_MS = Number(optional("PLAN_COOLDOWN_SECONDS", "15")) * 1000;
+let lastPlanAt = 0;
 
 // The simulation is deterministic, so it's computed once on first request.
 // It runs on synthetic data and never touches live sources or the live view.
@@ -113,6 +116,7 @@ const PAGES: Record<string, string> = {
 const REDIRECTS: Record<string, string> = {
   "/index.html": "/app",
   "/app.html": "/app",
+  "/favicon.ico": "/favicon.svg",
 };
 
 async function serveStatic(path: string, res: ServerResponse) {
@@ -137,7 +141,18 @@ async function notFound(res: ServerResponse) {
   }
 }
 
+// Same-origin scripts only, and the pages can't be framed. Styles allow inline attributes
+// because a few charts set heights through style attributes.
+const SECURITY_HEADERS: Record<string, string> = {
+  "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Strict-Transport-Security": "max-age=31536000",
+};
+
 const server = createServer(async (req, res) => {
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
   const url = new URL(req.url ?? "/", "http://localhost");
   // State-changing calls must carry a custom header. A cross-site form or fetch can't add one
   // without a CORS preflight, which this server never approves.
@@ -166,7 +181,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/plan") {
       if (planInFlight) return json(res, 409, { error: "A plan is already running." });
+      const wait = Math.ceil((lastPlanAt + PLAN_COOLDOWN_MS - Date.now()) / 1000);
+      if (wait > 0) return json(res, 429, { error: `A plan ran moments ago. Try again in ${wait} ${wait === 1 ? "second" : "seconds"}.` });
       planInFlight = true;
+      lastPlanAt = Date.now();
       try {
         return json(res, 200, await runPlan(planner));
       } catch (err) {

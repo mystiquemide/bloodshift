@@ -79,11 +79,17 @@ The end-to-end gate checks 13 things in a real browser against live sources. It 
 | What | Where |
 |---|---|
 | Live app | https://bloodshift.159-69-241-122.sslip.io, served from this repository's `main` with a self-hosted Zetaris |
-| Zetaris | Self-hosted Zetaris 2.4.3.1 from the "Run locally" bundle, federating 4 sources through its HTTP query API. The planning route read ([`ROUTES_SQL`](src/stock.ts)) unions two Postgres databases and a CSV and joins them with a REST API. The accept re-check ([`readSource`](src/accept.ts)) joins a hospital row with a courier slot. Each runs in about 0.5 to 1 second |
-| Model | `nvidia/nemotron-3.5-super-vl-120b-a12b` through NVIDIA NIM, reasoning off, one batched call per plan |
-| Meterless | World Model and H-MEM reference engines, vendored unmodified in [`vendor/`](vendor) |
 | Where to look in the app | The Proof drawer on any transfer: the hospital's own row read directly from its database or CSV, then the Zetaris SQL, query times, returned values, booking ID and state history |
 | Demo resets | Every 6 hours at 00, 06, 12 and 18 UTC: fresh synthetic stock and courier slots, then one starter round with a reservation, a refusal and a decline. `bash scripts/reset-demo.sh` does the same locally |
+
+## Sponsor technology
+
+| Technology | What it does here | In the code | Without it |
+|---|---|---|---|
+| Zetaris (self-hosted 2.4.3.1, "Run locally" bundle) | Reads four separately owned sources in place through its HTTP query API. One statement unions two Postgres databases and a CSV and joins them with the courier's REST API to list every possible route. Another joins a hospital's unit row with a courier slot for the accept re-check. Each runs in about 0.5 to 1 second | [`ROUTES_SQL`](src/stock.ts), [`readSource`](src/accept.ts), [`ZetarisClient`](src/zetaris.ts) | The app would need three database drivers, a CSV reader, a REST client and a hand-written join, and it would still need a sync to see the network in one place |
+| Meterless World Model | Records every transfer and state change as an event with provenance, and replays the log on restart. Each Proof drawer's history comes from it | [`src/transfers.ts`](src/transfers.ts) | No transfer history, no restart recovery and no Proof history |
+| Meterless H-MEM | Keeps each decline reason with its site, unit, transfer and time. Later plans pass these notes to Nemotron as data | [`src/declineMemory.ts`](src/declineMemory.ts) | Declines would be forgotten, and the model couldn't avoid sites that said no |
+| NVIDIA Nemotron (`nvidia/nemotron-3.5-super-vl-120b-a12b` through NIM) | Chooses one option per unit from a list the rules already approved, weighs past decline notes, and writes the request. Its output is validated, and anything it wasn't offered is dropped | [`src/nemotron.ts`](src/nemotron.ts) | A standard template writes the requests and the plan says so. The rules still decide what can move |
 
 ## Real usage
 
@@ -118,11 +124,13 @@ The rule engine owns every decision that matters: which units can move, where, a
 
 | Check | Command | Result on the current code |
 |---|---|---|
-| Unit tests | `npm test` | 88 of 88 pass, with a passing and a failing case for each business rule |
+| Unit tests | `npm test` | 94 of 94 pass, with a passing and a failing case for each business rule |
 | Types | `npm run typecheck` | Clean |
 | Decline evaluation | `npm run eval:declines` | 10 scripted scenarios against live Nemotron, including an injection attempt. At least 8 of 10 valid replans on every run, 10 of 10 on the last |
 | Simulation | `npm run simulate` | 12.8% fewer outdates over 20 runs, 11.6% over 100 |
 | Product images | `npm run screenshots` | Recaptures the site's images from the running app |
+
+Built during the hackathon build window, from 2026-10-24. Pre-existing components, used as published: the Meterless World Model and H-MEM reference engines (Apache-2.0, vendored unmodified in [`vendor/`](vendor)) and the DM Sans font (SIL Open Font License, in [`public/fonts`](public/fonts)). Everything else in this repository was written for this project.
 
 ## Run locally
 
