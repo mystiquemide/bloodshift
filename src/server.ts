@@ -87,6 +87,11 @@ const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
+  ".woff2": "font/woff2",
+  ".webp": "image/webp",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".txt": "text/plain; charset=utf-8",
 };
 
 function json(res: ServerResponse, status: number, body: unknown) {

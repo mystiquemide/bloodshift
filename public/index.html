@@ -7,14 +7,13 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="banner" role="note">Synthetic data. No real patients, hospitals or units.</div>
-  <header class="top">
-    <div>
-      <h1>Bloodshift</h1>
-      <p class="sub">Network platelet stock, read live from each hospital's own system through Zetaris</p>
-    </div>
-    <div class="actions">
-      <label class="switcher">View as
+  <div id="live-strip" class="live-strip" role="status" hidden></div>
+  <nav class="site-nav" aria-label="Main">
+    <div class="inner">
+      <a class="brand" href="/">Blood<span>shift</span></a>
+      <div class="links"><a href="/" aria-current="page">Live network</a><a href="/how-it-works.html">How it works</a><a href="/simulation.html">Simulation</a></div>
+      <div class="end"><span class="synthetic">Synthetic data, no real patients</span>
+        <label class="switcher">View as
         <select id="view">
           <option value="COORDINATOR">Network coordinator</option>
           <option value="SITE_A">Northgate General lab</option>
@@ -22,10 +21,12 @@
           <option value="SITE_C">Hillcrest Community lab</option>
         </select>
       </label>
-      <button id="refresh" type="button">Refresh</button>
-      <a class="link-button" href="/how-it-works.html">How it works</a>
-      <a class="link-button" href="/simulation.html">Simulation</a>
+        <button id="refresh" type="button" class="secondary">Refresh</button></div>
     </div>
+  </nav>
+  <header class="page-head">
+    <h1>Network platelet stock</h1>
+    <p class="sub">Read live from each hospital's own system through Zetaris</p>
   </header>
   <main>
     <p id="status" class="status" role="status" aria-live="polite">Loading live stock</p>
@@ -55,6 +56,7 @@
       <div class="table-wrap"><table id="slots"><thead><tr><th>Slot</th><th>Route</th><th>Departs</th><th>Status</th><th>Booking</th></tr></thead><tbody></tbody></table></div>
     </section>
   </main>
+  <script src="/strip.js" type="module"></script>
   <script src="/app.js" type="module"></script>
 </body>
 </html>

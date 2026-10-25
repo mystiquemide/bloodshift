@@ -7,13 +7,19 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="banner sim" role="note">Simulation on synthetic demand. Not live data, and nothing here feeds the live view.</div>
-  <header class="top">
-    <div>
-      <h1>Bloodshift</h1>
-      <p class="sub">30-day simulation: the transfer rule against no sharing</p>
+  <div id="live-strip" class="live-strip" role="status" hidden></div>
+  <nav class="site-nav" aria-label="Main">
+    <div class="inner">
+      <a class="brand" href="/">Blood<span>shift</span></a>
+      <div class="links"><a href="/">Live network</a><a href="/how-it-works.html">How it works</a><a href="/simulation.html" aria-current="page">Simulation</a></div>
+      <div class="end"><span class="synthetic">Synthetic data, no real patients</span>
+        <a class="pill" href="/">Open the live network</a></div>
     </div>
-    <a class="link-button" href="/">Back to live network</a>
+  </nav>
+  <div class="banner sim" role="note">Simulation on synthetic demand. Not live data, and nothing here feeds the live view.</div>
+  <header class="page-head">
+    <h1>What the rule would save in 30 days</h1>
+    <p class="sub">30-day simulation: the transfer rule against no sharing</p>
   </header>
   <main>
     <p id="status" class="status loading" role="status" aria-live="polite">Running the simulation</p>
@@ -37,5 +43,6 @@
     </section>
   </main>
   <script src="/simulation.js" type="module"></script>
+  <script src="/strip.js" type="module"></script>
 </body>
 </html>
