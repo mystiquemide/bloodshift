@@ -2,139 +2,146 @@
 
 **Platelets that reach the right hospital on time.**
 
-Live demo: https://bloodshift.midelabs.xyz (synthetic hospitals, no real patients)
+Bloodshift reads every hospital's live platelet stock through Zetaris, plans transfers that prevent waste, and moves a unit only after re-checking the sending hospital's own record.
+
+**Live demo:** https://bloodshift.midelabs.xyz · synthetic hospitals, no real patients
 
 ![The coordinator's morning plan: transfer requests between three hospitals, each citing a live unit](public/img/plan.webp)
 
-## The story
+## The problem
 
-Platelets last about five days. One hospital throws them out while a hospital down the road runs short, because nobody can see the whole network's live stock in time.
+Platelets expire about five days after collection, faster than any other blood component. One hospital throws them out while a hospital nearby runs short, because nobody can see the whole network's live stock when the decision is made.
 
-Sharing stock between sites is already proven to fix this. Adelaide's BloodMove program cut platelet wastage from [17% to 7.8%](https://www.blood.gov.au/sites/default/files/documents/2024-09/D15%20109791%20%20Better%20Practice%20Case%20Study%20%20BloodMove%20Platelets%20%20a%20successful%20system%20to%20significantly%20reduce%20platelet%20wastage_RT.pdf), and Emory's hospitals saw [about 20% fewer outdates](https://ideas.repec.org/a/inm/oropre/v71y2023i5p1756-1776.html) after they started moving units between sites.
+Moving near-expiry units between hospitals is a proven fix:
 
-Those programs still run on manual stock posting, reports and phone calls. Bloodshift does the same job from each hospital's own live record, and proves every move.
+| Program | Result |
+|---|---|
+| BloodMove, Adelaide public hospitals | Platelet wastage fell from 17% to 7.8% ([National Blood Authority case study](https://www.blood.gov.au/sites/default/files/documents/2024-09/D15%20109791%20%20Better%20Practice%20Case%20Study%20%20BloodMove%20Platelets%20%20a%20successful%20system%20to%20significantly%20reduce%20platelet%20wastage_RT.pdf)) |
+| Emory hospitals | About 20% fewer platelet outdates ([Zhang et al., Operations Research, 2023](https://ideas.repec.org/a/inm/oropre/v71y2023i5p1756-1776.html)) |
 
-## One-liner
+These programs still run on hand-posted stock lists, reports and phone calls. The people who feel it are the network transfusion coordinator, who rebalances stock every morning, and the lab staff at each hospital, who have to trust that a unit offered to them still exists.
 
-Bloodshift isn't a data warehouse, a sync pipeline or a chatbot that decides where blood goes. It reads every hospital's live platelet stock in place through Zetaris, and it follows one rule: **no live row, no move.** A unit moves only if the sending hospital's own system still shows it available at the moment the receiving lab accepts.
+## The solution
+
+Bloodshift gives the coordinator one live view of every hospital's stock and a morning plan built from it. Each hospital's lab gets an inbox where it accepts or declines requests. Every move follows one rule:
+
+> **No live row, no move.** A unit moves only if the sending hospital's own system still shows it available at the moment the receiving lab accepts. Every move cites that row.
+
+Nothing is copied or synced. Each hospital keeps its own system, and Bloodshift writes back to it only through narrow, conditional updates.
 
 ## How it works
 
-Every hospital keeps its own system. Zetaris reads all of them in place, with nothing copied. One federated SQL statement joins every hospital's available units with the courier's open slots, and only routes it returns can become transfers.
+```mermaid
+flowchart LR
+  A[Northgate General<br/>Postgres] --> Z
+  B[Riverside Medical<br/>Postgres] --> Z
+  C[Hillcrest Community<br/>CSV export] --> Z
+  K[Courier<br/>REST API] --> Z
+  Z[Zetaris<br/>federated SQL] --> R[Rule engine<br/>what can move]
+  R --> N[NVIDIA Nemotron<br/>picks and writes the request]
+  N --> L[Lab inbox<br/>accept or decline]
+  L -->|accept| X[Re-check through Zetaris]
+  X -->|unchanged| W[Reserve at the source<br/>and book the courier]
+  X -->|changed| F[Refused, nothing written,<br/>replacement offered]
+  L -->|decline| H[Meterless H-MEM]
+  W --> M[Meterless World Model]
+  F --> M
+```
 
-A fixed rule finds units that would expire unused and lists every transfer that passes the business rules. NVIDIA Nemotron picks among those options and writes the request. It can't add a unit, site or slot.
+1. **Read live.** Zetaris reads two hospital Postgres databases, a third hospital's CSV export and a courier's REST API in place.
+2. **Plan.** One federated SQL statement joins every hospital's available units with the courier's open slots. A deterministic rule projects which units will expire unused and keeps only the routes that pass every business rule, including a published platelet ABO and RhD selection policy.
+3. **Request.** NVIDIA Nemotron chooses one option per unit from the approved list, weighs each lab's past decline reasons, and writes the request. It can't add a unit, site or slot, and its output is validated.
+4. **Re-check.** When a lab accepts, one federated statement re-reads the hospital's unit row and the courier slot together. If either changed, the transfer is refused and nothing is written.
+5. **Reserve and book.** The unit is reserved in the sender's own system with a conditional update, the courier is booked, and a final read through Zetaris confirms both.
 
-When a lab accepts, Bloodshift reads the unit and the courier slot again. If either changed, it refuses and writes nothing. Otherwise it reserves the unit in the sender's own system and books the courier.
+Every state change is an event in the Meterless World Model, and every decline reason is kept in Meterless H-MEM for the next plan.
 
-Every step is an event in the Meterless World Model, and every decline reason is kept in Meterless H-MEM for the next plan.
+## Technical depth
 
-| Operation | Who | What happens |
+The rule engine owns every decision that matters: which units can move, where, and whether an accept goes through. The model works only inside what the rules allow.
+
+**Failure cases, each covered by a test:**
+
+| Case | What happens | Test |
 |---|---|---|
-| Read stock | Anyone | Zetaris queries 2 Postgres databases, a CSV export and the courier's REST API live |
-| Run the morning plan | Coordinator | The rule projects outdates and builds options. Nemotron chooses and writes the requests. Nothing is reserved yet |
-| Send requests | Coordinator | Each request lands in the receiving lab's inbox |
-| Accept | Receiving lab | One federated statement re-reads the hospital's unit row and the courier's slot together, then a conditional reservation at the source and a courier booking. A final read confirms both |
-| Accept a unit that changed | Receiving lab | Refused with the source's reason. Nothing is written, and another unit is offered |
-| Decline with a reason | Receiving lab | The reason goes to H-MEM, and the unit is offered to another site, never the one that declined |
-| Retry | Receiving lab | A failed attempt, like a courier outage, is released cleanly and can be retried |
+| Unit used at its source after the plan | Refused with the hospital's reason. No reservation, no booking, replacement offered | [accept](test/accept.test.ts#L106), [replacement](test/planner.test.ts#L202) |
+| Row changes between the re-check and the write | The conditional write fails, so nothing is overwritten | [test](test/accept.test.ts#L140) |
+| Courier slot taken, or courier down | Refused or failed, the reservation is released, and Retry works | [taken](test/accept.test.ts#L171), [down](test/accept.test.ts#L159) |
+| Zetaris unreachable during accept | Fails without writing anything | [test](test/accept.test.ts#L149) |
+| Accept double-clicked | Books once | [test](test/accept.test.ts#L187) |
+| Wrong site accepts or declines | Rejected | [accept](test/accept.test.ts#L196), [decline](test/planner.test.ts#L213) |
+| Nemotron invents a unit, site or option | Dropped, and the deterministic choice is used | [validator](test/nemotron.test.ts#L18), [rules](test/rules.test.ts#L184) |
+| Nemotron fails or times out | One retry, then a standard template, and the plan says so | [retry](test/nemotron.test.ts#L58), [template](test/planner.test.ts#L144) |
+| Decline reason tries to inject instructions | Passed to the model as data only | [test](test/planner.test.ts#L174) |
+| A source is down | Stock shows partial and names the site, and the plan refuses to run on stale data | [stock](test/stock.test.ts#L49), [plan](test/planner.test.ts#L89) |
+| Group O to a non-O patient, RhD-positive to RhD-negative | Never offered | [O](test/rules.test.ts#L77), [RhD](test/rules.test.ts#L80) |
+| One unit or courier slot in two transfers | Never | [unit](test/rules.test.ts#L144), [slot](test/rules.test.ts#L202) |
+| Server restart | Every transfer and its history survive | [test](test/transfers.test.ts#L44) |
 
-## Try it in 2 minutes
+**Results:**
 
-Open https://bloodshift.midelabs.xyz/app.
+| Check | Command | Result |
+|---|---|---|
+| Unit tests | `npm test` | 94 of 94, with a passing and a failing case for each business rule |
+| Types | `npm run typecheck` | Clean |
+| End-to-end | Browser run against live Zetaris, Postgres, CSV and courier | 13 of 13 checks, each write confirmed by reading the hospital's own database directly |
+| Model evaluation | `npm run eval:declines` | 10 scripted decline scenarios against live Nemotron, including an injection attempt. At least 8 of 10 valid replans on every run, 10 of 10 on the last |
+| Simulation | `npm run simulate` | 12.8% fewer outdates than no sharing over 20 runs of 30 days, 11.6% over 100. Synthetic demand, not a measured result |
 
-1. **See live stock.** Three hospitals and the courier, each row labelled with the system it came from and the time Zetaris read it.
-2. **Run the morning plan.** Click Run morning plan, then Send. Each request says whether Nemotron or the standard template wrote it.
+**Stack:** TypeScript on Node 22, no framework. Self-hosted Zetaris 2.4.3.1, Postgres 16, NVIDIA NIM, the Meterless World Model and H-MEM, and plain HTML, CSS and JavaScript in the browser.
+
+## What's new
+
+| Existing approach | What it does | What Bloodshift does differently |
+|---|---|---|
+| Ontario's [ORBCoN Platelet Inventory Exchange](https://transfusionontario.org/en/?p=2496) | Staff enter short-dated units into a web app by hand | Reads each hospital's own system live, with no posting step |
+| BloodMove, Emory transshipment | Proven programs run on reports, calls and policy | The same idea, run from live records with a proof trail for every move |
+| A shared spreadsheet or nightly sync | Copies stock into one place | Nothing is copied, so a lab never accepts against stale data |
+| An AI agent over a data warehouse | A model reads data and recommends | The model only picks among rule-approved options, and every move re-checks the source of record before anything is written |
+
+## Demo
+
+Open https://bloodshift.midelabs.xyz/app and follow this path:
+
+1. **See live stock.** Three hospitals and the courier, each row labelled with its source system and the time Zetaris read it.
+2. **Run the morning plan, then Send.** Each request says whether Nemotron or the standard template wrote it.
 3. **Accept one.** Switch View as to Riverside Medical lab, or open [/app?view=SITE_B](https://bloodshift.midelabs.xyz/app?view=SITE_B), and click Accept. The card shows what it's checking, then Reserved with a courier booking ID.
-4. **Open Proof.** Every transfer has a Proof drawer with the exact SQL Zetaris ran at planning, at the accept re-check and after the writes, plus the full state history.
-5. **Break the rule.** On another waiting request, click Mark used under Try the refusal. That changes the unit in the sending hospital's own database or CSV, the way its lab system would, and Bloodshift isn't told. Now click Accept. It's refused with the hospital's reason, nothing is reserved or booked, and a replacement is offered. Proof shows the hospital's own row read directly, next to the Zetaris re-check.
-6. **Decline one.** Decline another request with a reason. The unit goes to another site, and the reason shows under What you've told the network.
+4. **Break the rule.** On another waiting request, click Mark used. That changes the unit in the sending hospital's own database or CSV, the way its lab system would, and Bloodshift isn't told. Click Accept. It's refused with the hospital's reason, nothing is reserved or booked, and a replacement is offered.
+5. **Open Proof.** The hospital's own row, read directly from its system, sits next to the exact SQL Zetaris ran at planning, at the re-check and after the writes, with the full state history.
+6. **Decline one** with a reason. The unit goes to another site, and the reason appears under What you've told the network.
 
-## How I tried to break it
+The demo network resets every 6 hours, at 00, 06, 12 and 18 UTC, with fresh synthetic stock and one starter round already run.
 
-Every case below has a unit test. The ones marked Live were also checked against the real Zetaris, Postgres, CSV and courier.
+## Product and UX
 
-| Case | Outcome | Proof |
-|---|---|---|
-| Unit marked used at its source before accept | Refused with the source's reason. No reservation, no booking, replacement offered | [test](test/accept.test.ts#L94), [replacement](test/planner.test.ts#L172), [source control](test/accept.test.ts), Live, and on the live demo with Mark used |
-| Row changes between the Zetaris read and the write | The conditional write fails, so nothing is overwritten | [test](test/accept.test.ts#L112) |
-| Courier slot taken by someone else | Refused, and the reservation is released | [test](test/accept.test.ts#L143) |
-| Courier down during accept | Fails, releases the unit, and Retry succeeds later | [test](test/accept.test.ts#L131), Live |
-| Zetaris unreachable during accept | Fails without writing anything, retries cleanly | [test](test/accept.test.ts#L121) |
-| Accept double-clicked | Books once | [test](test/accept.test.ts#L159) |
-| Wrong site tries to accept or decline | Rejected. Only the receiving site can | [accept](test/accept.test.ts#L168), [decline](test/planner.test.ts#L183) |
-| Malformed transfer ID | Rejected before it reaches SQL | [test](test/accept.test.ts#L176) |
-| Nemotron invents a unit, site or option | Dropped by the validator, and the deterministic choice is used | [validator](test/nemotron.test.ts#L18), [fallback choice](test/rules.test.ts#L184) |
-| Nemotron fails or times out | One retry, then the standard template, and the plan says so | [retry](test/nemotron.test.ts#L58), [template](test/planner.test.ts#L114) |
-| Decline reason tries to inject instructions | Passed to the model as data, never as instructions. Replans stay valid | [test](test/planner.test.ts#L144), `npm run eval:declines` |
-| One source down | Stock shows partial and names the site. The plan refuses to run on stale data | [stock](test/stock.test.ts#L49), [plan](test/planner.test.ts#L81), Live |
-| Zetaris token expires after 15 minutes | Logs in again before expiry, and again if Zetaris rejects a stale token | [tests](test/zetaris.test.ts) |
-| Group O offered to a non-O patient, or RhD-positive to RhD-negative | Never offered | [O](test/rules.test.ts#L77), [RhD](test/rules.test.ts#L80) |
-| Same unit or courier slot in two transfers | Never | [unit](test/rules.test.ts#L144), [slot](test/rules.test.ts#L202), [active transfer](test/planner.test.ts#L94) |
-| Server restart mid-flow | Every transfer and its history survive | [test](test/transfers.test.ts#L44), Live |
-
-The end-to-end gate checks 13 things in a real browser against live sources. It reads each hospital's own database and the courier directly to confirm every write, and it passed 13 of 13 on the current code.
-
-## Live proof
-
-| What | Where |
-|---|---|
-| Live app | https://bloodshift.midelabs.xyz, served from this repository's `main` with a self-hosted Zetaris |
-| Where to look in the app | The Proof drawer on any transfer: the hospital's own row read directly from its database or CSV, then the Zetaris SQL, query times, returned values, booking ID and state history |
-| Demo resets | Every 6 hours at 00, 06, 12 and 18 UTC: fresh synthetic stock and courier slots, then one starter round with a reservation, a refusal and a decline. `bash scripts/reset-demo.sh` does the same locally |
+- **Two roles, one app.** The coordinator sees every hospital and the plan. Each lab sees only its own inbox, with a direct link per lab (`/app?view=SITE_A`, `SITE_B`, `SITE_C`).
+- **Every state is shown honestly:** loading, a partial network naming the site that's down, Zetaris unreachable, the model down with the template in use, and empty inboxes that say what will arrive.
+- **Every decision is explainable** from its Proof drawer, without leaving the card.
+- **Accessible:** every text element meets WCAG AA contrast, the layout works from 320px wide, and there's no horizontal scrolling.
+- **[How it works](https://bloodshift.midelabs.xyz/how-it-works)** explains the loop and the rules, and **[Simulation](https://bloodshift.midelabs.xyz/simulation)** shows the 30-day result by blood group.
 
 ## Sponsor technology
 
 | Technology | What it does here | In the code | Without it |
 |---|---|---|---|
-| Zetaris (self-hosted 2.4.3.1, "Run locally" bundle) | Reads four separately owned sources in place through its HTTP query API. One statement unions two Postgres databases and a CSV and joins them with the courier's REST API to list every possible route. Another joins a hospital's unit row with a courier slot for the accept re-check. Each runs in about 0.5 to 1 second | [`ROUTES_SQL`](src/stock.ts), [`readSource`](src/accept.ts), [`ZetarisClient`](src/zetaris.ts) | The app would need three database drivers, a CSV reader, a REST client and a hand-written join, and it would still need a sync to see the network in one place |
-| Meterless World Model | Records every transfer and state change as an event with provenance, and replays the log on restart. Each Proof drawer's history comes from it | [`src/transfers.ts`](src/transfers.ts) | No transfer history, no restart recovery and no Proof history |
-| Meterless H-MEM | Keeps each decline reason with its site, unit, transfer and time. Later plans pass these notes to Nemotron as data | [`src/declineMemory.ts`](src/declineMemory.ts) | Declines would be forgotten, and the model couldn't avoid sites that said no |
-| NVIDIA Nemotron (`nvidia/nemotron-3.5-super-vl-120b-a12b` through NIM) | Chooses one option per unit from a list the rules already approved, weighs past decline notes, and writes the request. Its output is validated, and anything it wasn't offered is dropped | [`src/nemotron.ts`](src/nemotron.ts) | A standard template writes the requests and the plan says so. The rules still decide what can move |
+| Zetaris, self-hosted 2.4.3.1 | Reads four separately owned sources in place. One statement unions two Postgres databases and a CSV and joins them with a REST API to list every route. Another joins a hospital's unit row with a courier slot for the accept re-check. Each runs in about 0.5 to 1 second | [`ROUTES_SQL`](src/stock.ts), [`readSource`](src/accept.ts), [`ZetarisClient`](src/zetaris.ts) | Three database drivers, a CSV reader, a REST client and a hand-written join, plus a sync to see the network in one place |
+| Meterless World Model | Records every transfer and state change as an event with provenance, and replays the log on restart | [`src/transfers.ts`](src/transfers.ts) | No transfer history, no restart recovery, no Proof history |
+| Meterless H-MEM | Keeps each decline reason with its site, unit, transfer and time, and feeds it to the next plan as data | [`src/declineMemory.ts`](src/declineMemory.ts) | Labs that declined would be asked again |
+| NVIDIA Nemotron, `nvidia/nemotron-3.5-super-vl-120b-a12b` through NIM | Chooses among rule-approved options, weighs past declines, and writes each request in one batched call per plan | [`src/nemotron.ts`](src/nemotron.ts) | A standard template writes the requests, and the plan says so |
 
-## Real usage
+## Limitations
 
-There's no real hospital usage yet. Every hospital, unit and patient demand here is synthetic, generated from a fixed seed. What's real is the plumbing: live reads through a real Zetaris, real writes into the hospitals' own Postgres and CSV, a working courier service, and real Nemotron calls.
-
-## How this differs
-
-| Alternative | What it does | What Bloodshift does differently |
-|---|---|---|
-| Ontario's [ORBCoN Platelet Inventory Exchange](https://transfusionontario.org/en/?p=2496) | Staff enter their short-dated units into a web app by hand, and other sites browse them | Reads each hospital's own system live, with no posting step |
-| BloodMove, Emory transshipment | Proven programs run with reports, phone calls and policy | Same idea, run from live records with a proof trail for every move |
-| A shared spreadsheet or nightly sync | Copies stock into one place | Nothing is copied. A sync is already stale when a lab accepts |
-| A chat agent over a data warehouse | A model reads data and recommends | The model only picks among rule-approved options, its output is validated, and every move re-checks the live source |
-
-## Honest limitations
-
-- **Synthetic data only.** No real hospital, unit or patient. Don't use this for clinical decisions.
-- **No sign-in.** View as switches between the coordinator and each lab. The server checks that the acting site is the receiving site, but it can't verify who is acting. It's a demo of the workflow, not an access-controlled product.
-- **Writes don't go through Zetaris.** Zetaris only reads. Reservations go to each hospital's own system through small adapters, so hospitals keep write control.
+- **Synthetic data only.** No real hospital, unit or patient. Not for clinical use.
+- **No sign-in.** View as switches between roles. The server checks that the acting site is the receiving site, but it can't verify who is acting.
+- **Zetaris only reads.** Reservations go to each hospital's own system through small adapters, so hospitals keep write control.
 - **The courier is a mock service** with a REST API.
-- **Mark used is a demo control.** It writes to a hospital's own record so anyone can trigger a refusal, and only on a request still waiting on its lab. Set `DEMO_CONTROLS=off` to remove it.
-- **The simulation is modest.** Over 20 runs the rule cuts outdates by 12.8% against no sharing, and by 11.6% over 100 runs. It runs on synthetic demand and isn't a measured result. The published programs above also changed ordering and practice, so their numbers are larger.
-- **The clinical rules are a starting point.** Platelet matching follows the SNBTS Policy for Platelet Selection (2014). Some business rules are working assumptions, such as the 12-hour minimum shelf life on arrival and one unit of safety stock per group. They're labelled as such on [How it works](https://bloodshift.midelabs.xyz/how-it-works).
-- **One process, one network.** History lives in a local event log, and there's one coordinator view.
-- **Unaudited** hackathon code.
+- **Mark used is a demo control.** It only works on a request still waiting on its lab. `DEMO_CONTROLS=off` removes it.
+- **The clinical rules are a starting point.** Matching follows the SNBTS Policy for Platelet Selection (2014). Some business rules, like the 12-hour minimum shelf life on arrival and one unit of safety stock per group, are working assumptions and are labelled as such.
+- **One process, one network,** with history in a local event log. Unaudited hackathon code.
 
-## What's real
+## Setup
 
-Every read, write, booking and model call in the shipped path is real. The hospitals, their data and the courier are synthetic stand-ins.
-
-The rule engine owns every decision that matters: which units can move, where, and whether an accept goes through. Nemotron chooses among options the rule already approved and writes the requests. If it's down, a standard template takes over and the plan says so.
-
-| Check | Command | Result on the current code |
-|---|---|---|
-| Unit tests | `npm test` | 94 of 94 pass, with a passing and a failing case for each business rule |
-| Types | `npm run typecheck` | Clean |
-| Decline evaluation | `npm run eval:declines` | 10 scripted scenarios against live Nemotron, including an injection attempt. At least 8 of 10 valid replans on every run, 10 of 10 on the last |
-| Simulation | `npm run simulate` | 12.8% fewer outdates over 20 runs, 11.6% over 100 |
-| Product images | `npm run screenshots` | Recaptures the site's images from the running app |
-
-Built during the hackathon build window, from 2026-10-24. Pre-existing components, used as published: the Meterless World Model and H-MEM reference engines (Apache-2.0, vendored unmodified in [`vendor/`](vendor)) and the DM Sans font (SIL Open Font License, in [`public/fonts`](public/fonts)). Everything else in this repository was written for this project.
-
-## Run locally
-
-You need Node 22+, Docker, and a running Zetaris. Use the Docker Compose bundle from Zetaris Cloud ("Run locally"). An NVIDIA API key from build.nvidia.com is optional. Without one, requests use a standard template.
+**Dependencies:** Node 22+, Docker, and a running Zetaris from the Zetaris Cloud "Run locally" Docker Compose bundle. An NVIDIA API key from build.nvidia.com is optional. Without one, requests use a standard template.
 
 ```bash
 git clone https://github.com/mystiquemide/bloodshift.git && cd bloodshift
@@ -144,7 +151,18 @@ npm run register                      # registers all four sources in Zetaris
 npm start                             # http://localhost:4000, the app is at /app
 ```
 
-To see a refusal, run the plan and send it, mark a requested unit used at its source, then accept it as the receiving lab:
+`.env.example` documents every setting.
+
+| Command | What it does |
+|---|---|
+| `npm test` | Unit tests |
+| `npm run typecheck` | TypeScript checks |
+| `npm run simulate` | 30-day simulation of the rule against no sharing. `npm run simulate -- 100` for more runs |
+| `npm run eval:declines` | Decline scenarios against live Nemotron |
+| `bash scripts/reset-demo.sh` | Fresh stock and slots, then one starter round. `STARTER=off` skips the round |
+| `npm run screenshots` | Recaptures the site's product images from the running app |
+
+**Try a refusal from the command line.** Run the plan and send it, then mark a requested unit used at its source and accept it as the receiving lab:
 
 ```bash
 docker exec bs_site_a psql -U site_a -d site_a -c "UPDATE platelet_units SET status='used' WHERE unit_id='U-A-0112'"
@@ -152,12 +170,14 @@ docker exec bs_site_a psql -U site_a -d site_a -c "UPDATE platelet_units SET sta
 
 `docker stop bs_site_b` shows the partial-network state, and `docker start bs_site_b` brings it back.
 
-### On a server
-
-`infra/deploy.sh` sets up Zetaris and Bloodshift on one Ubuntu 24.04 server. It keeps Zetaris on 127.0.0.1 and serves Bloodshift over HTTPS. Download `zetaris-platform.zip` from Zetaris Cloud ("Run locally") onto the server, then:
+**Deploy to a server.** `infra/deploy.sh` sets up Zetaris and Bloodshift on one Ubuntu 24.04 server, keeps Zetaris on 127.0.0.1, serves Bloodshift over HTTPS, and installs the 6-hour demo reset. Download `zetaris-platform.zip` from Zetaris Cloud ("Run locally") onto the server, then:
 
 ```bash
 sudo ZETARIS_ZIP=/root/zetaris-platform.zip MODE=standalone bash infra/deploy.sh
 ```
 
 Use `MODE=proxy` when another reverse proxy already holds ports 80 and 443. The server needs about 4 GB of free memory and 15 GB of disk.
+
+## Built during the hackathon
+
+Built during the Open Agent Hackathon 2026 build window, from 2026-10-24. Pre-existing components, used as published: the Meterless World Model and H-MEM reference engines (Apache-2.0, vendored unmodified in [`vendor/`](vendor)) and the DM Sans font (SIL Open Font License, in [`public/fonts`](public/fonts)). Everything else in this repository was written for this project.
