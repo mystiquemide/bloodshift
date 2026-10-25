@@ -8,6 +8,8 @@ Bloodshift reads every hospital's live platelet stock through Zetaris, plans tra
 
 **Live demo:** https://bloodshift.midelabs.xyz · synthetic hospitals, no real patients
 
+[![Watch the Bloodshift demo (2:05)](docs/media/demo-thumbnail.jpg)](https://youtu.be/-wC3uAxXBQM)
+
 ![The coordinator's morning plan: transfer requests between three hospitals, each citing a live unit](public/img/plan.webp)
 
 ## The problem
