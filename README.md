@@ -4,6 +4,8 @@
 
 Bloodshift reads every hospital's live platelet stock through Zetaris, plans transfers that prevent waste, and moves a unit only after re-checking the sending hospital's own record.
 
+[![CI](https://github.com/mystiquemide/bloodshift/actions/workflows/ci.yml/badge.svg)](https://github.com/mystiquemide/bloodshift/actions/workflows/ci.yml)
+
 **Live demo:** https://bloodshift.midelabs.xyz · synthetic hospitals, no real patients
 
 ![The coordinator's morning plan: transfer requests between three hospitals, each citing a live unit](public/img/plan.webp)
@@ -85,7 +87,7 @@ The rule engine owns every decision that matters: which units can move, where, a
 | Unit tests | `npm test` | 94 of 94, with a passing and a failing case for each business rule |
 | Types | `npm run typecheck` | Clean |
 | End-to-end | Browser run against live Zetaris, Postgres, CSV and courier | 13 of 13 checks, each write confirmed by reading the hospital's own database directly |
-| Model evaluation | `npm run eval:declines` | 10 scripted decline scenarios against live Nemotron, including an injection attempt. At least 8 of 10 valid replans on every run, 10 of 10 on the last |
+| Model evaluation | `npm run eval:declines` | 10 scripted decline scenarios against live Nemotron, including an injection attempt. At least 8 of 10 valid replans on every run. When a call fails, the template takes over and the unit still goes to another site |
 | Simulation | `npm run simulate` | 12.8% fewer outdates than no sharing over 20 runs of 30 days, 11.6% over 100. Synthetic demand, not a measured result |
 
 **Stack:** TypeScript on Node 22, no framework. Self-hosted Zetaris 2.4.3.1, Postgres 16, NVIDIA NIM, the Meterless World Model and H-MEM, and plain HTML, CSS and JavaScript in the browser.

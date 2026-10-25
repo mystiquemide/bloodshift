@@ -49,8 +49,15 @@ const SCENARIOS: Scenario[] = [
 ];
 
 function querier(s: Scenario): Querier {
-  return {
+  const self: Querier = {
     query: async (sql) => {
+      // The federated route read: available units joined with open slots from the same site
+      if (sql.includes("UNION ALL")) {
+        const units = (await Promise.all(["bs_site_a", "bs_site_b", "bs_site_c"].map((src) => self.query(`SELECT FROM ${src}.platelet_units`)))).flatMap((r) => r.rows);
+        const slots = (await self.query("SELECT FROM bs_courier.slots")).rows;
+        return res(units.filter((u) => u.status === "available").flatMap((u) =>
+          slots.filter((sl) => sl.from_site === u.site_id && sl.status === "open").map((sl) => ({ unit_id: u.unit_id ?? null, slot_id: sl.slot_id ?? null }))));
+      }
       if (sql.includes("usage_history")) {
         const site = sql.includes("bs_site_a") ? "SITE_A" : sql.includes("bs_site_b") ? "SITE_B" : "SITE_C";
         const perDay = site === "SITE_A" ? 1 : site === "SITE_B" ? s.useB : s.useC;
@@ -69,6 +76,7 @@ function querier(s: Scenario): Querier {
       return res([]);
     },
   };
+  return self;
 }
 
 async function runScenario(s: Scenario, decider: NemotronDecider) {
